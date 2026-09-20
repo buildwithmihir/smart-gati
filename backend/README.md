@@ -64,6 +64,58 @@ table = dijkstra_all_pairs(graph, stops)      # {(src, dst): (path, cost)}
 A `21 × 21` cost matrix over real Delhi nodes takes ~160 ms, against ~810 ms for
 the naive one-search-per-pair equivalent.
 
+## VRP layer
+
+`qgati.optimizer` solves the Vehicle Routing Problem on top of the cost matrix —
+it never touches the road graph.
+
+```python
+from qgati.graph import build_cost_matrix
+from qgati.optimizer import build_random_scenario, solve_brute_force, clarke_wright_savings, evaluate
+
+scenario = build_random_scenario(graph, n_deliveries=6, n_vehicles=2, seed=1)
+costs    = build_cost_matrix(graph, scenario)     # dense (n+1)^2 travel-time array
+
+optimal  = solve_brute_force(scenario, costs)     # exact, <= 10 deliveries
+heuristic = clarke_wright_savings(scenario, costs)
+
+print(evaluate(optimal, scenario, costs).summary())
+```
+
+| Piece                  | Role                                                        |
+| ---------------------- | ----------------------------------------------------------- |
+| `models`               | `Depot`, `Delivery`, `Vehicle`, `Scenario`, `Solution` — the contract every solver consumes |
+| `scenarios`            | `build_random_scenario` — draws only from the largest strongly-connected subgraph |
+| `fitness`              | `evaluate` — shared cost + penalty function all solvers are scored by |
+| `brute_force`          | Exact (Held-Karp + partition search), ground truth for small instances |
+| `savings`              | Clarke-Wright Savings — the heuristic baseline              |
+
+`Solution.routes` always holds **exactly one entry per vehicle** (unused vehicles
+empty), so "more vehicles than the fleet has" is unrepresentable rather than
+something each solver must remember to check. Routes list *delivery indices*,
+not node ids — which keeps two deliveries at one address distinguishable.
+
+### Two invariants worth knowing
+
+**Scenarios are always servable.** `build_random_scenario` samples only from
+`largest_strongly_connected_subgraph`. A real extract contains one-way stubs you
+can enter but not leave (37 of 2033 nodes in the current Delhi extract); a
+delivery placed on one would have no feasible tour, which is a modelling error
+that would surface as a mysterious optimizer failure. `build_cost_matrix` raises
+on an unreachable pair rather than substituting `inf`, for the same reason.
+
+**Infeasible can never outscore feasible.** `evaluate` returns travel cost plus
+capacity, coverage and shape penalties, with weights auto-scaled to the matrix
+magnitude — so no constant tuning is needed when moving between toy costs and
+real Delhi travel times.
+
+### Baseline quality
+
+Against the exact solver on 40 sampled Delhi instances, Clarke-Wright lands a
+median ~7-9% above optimal (0% on a symmetric euclidean equivalent). The gap
+comes from one-way streets: Delhi scenario matrices average ~12% relative
+asymmetry, and the classical savings formula is a symmetric one.
+
 ## Tests
 
 ```bash
