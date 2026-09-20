@@ -26,3 +26,9 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: exercises the real Delhi graph; needs a populated cache. Opt in with QGATI_RUN_SLOW=1.",
+]
