@@ -1,0 +1,28 @@
+[project]
+name = "qgati"
+version = "0.1.0"
+description = "Q-Gati: intelligent vehicle routing and fleet optimization for Delhi"
+readme = "README.md"
+authors = [
+    { name = "buildwithmihir", email = "mihirkumar148@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.141.1",
+    "networkx>=3.6.1",
+    "numpy>=2.4.6",
+    "osmnx>=2.1.1",
+    "uvicorn>=0.53.0",
+]
+
+[project.scripts]
+qgati = "qgati:main"
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

@@ -1,0 +1,12 @@
+# Frontend — Phase 6
+
+The Next.js app has not been scaffolded yet, by design. This file only keeps the
+directory in git so the repo structure matches the plan.
+
+When Phase 6 starts, scaffold here with:
+
+```bash
+npx create-next-app@latest . --typescript --app --tailwind --eslint
+```
+
+It will consume the backend API (see `../backend/README.md`).

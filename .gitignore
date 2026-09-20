@@ -1,0 +1,47 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# uv
+.uv/
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Cached data (downloaded road graphs, large artifacts) ---
+backend/data/cache/*
+!backend/data/cache/.gitkeep
+
+# --- Claude Code local settings ---
+.claude/settings.local.json
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Jupyter ---
+.ipynb_checkpoints/
