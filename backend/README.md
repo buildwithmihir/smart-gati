@@ -116,6 +116,61 @@ median ~7-9% above optimal (0% on a symmetric euclidean equivalent). The gap
 comes from one-way streets: Delhi scenario matrices average ~12% relative
 asymmetry, and the classical savings formula is a symmetric one.
 
+## QPSO
+
+`qgati.optimizer.qpso` is the headline solver: the genuine quantum-behaved
+particle swarm (Sun et al., 2004), not classical PSO renamed. Particles are
+sampled from a quantum potential well rather than driven by velocity.
+
+```python
+from qgati.optimizer import run_qpso
+
+solution, cost, history = run_qpso(costs, scenario, seed=42)
+# history[i] = best-so-far cost after generation i — feed it to the explain layer
+```
+
+`num_particles` (30), `num_iterations` (100) and the contraction-expansion
+schedule (`beta_start` 1.0 → `beta_end` 0.5) are all configurable. A given seed
+reproduces a run exactly.
+
+### Encoding — the decision that matters most
+
+QPSO is a **continuous** optimizer; the VRP is combinatorial. Two choices bridge
+that gap:
+
+**Positions are random keys.** A particle is `n` reals; sorting them gives a
+delivery permutation. This keeps positions continuous so the quantum update
+applies unchanged, while every real vector decodes to a valid permutation — and
+it is order-preserving, so nearby positions mean similar routes. That locality is
+what QPSO's gradient-free guidance depends on; a direct integer encoding would
+destroy it.
+
+**Route boundaries come from an optimal split, not encoded split points.** Fixed
+split points would leave capacity feasibility to the search, making QPSO repair
+overloaded vehicles instead of shortening routes. Instead a short DP (Prins'
+split) cuts the permutation into the cheapest at-most-*k* capacity-feasible
+routes. Capacity holds by construction, and because the split is solved *exactly*
+rather than heuristically, it dominates any fixed split points the swarm could
+have encoded.
+
+### Results
+
+Against the exact optimum on the real Delhi graph (30 particles, 100 iterations,
+5 seeds):
+
+| Instance | Brute force | Savings | QPSO best |
+| --- | --- | --- | --- |
+| n=6, k=2 | 1123.6 s | 1303.7 s (+16.0%) | **1123.6 s (+0.0%)** |
+| n=8, k=3 | 1412.3 s | 1603.1 s (+13.5%) | **1412.3 s (+0.0%)** |
+| n=10, k=3 | 1318.5 s | 1428.1 s (+8.3%) | **1318.5 s (+0.0%)** |
+
+Beyond exact reach, QPSO beats Savings by ~10% (n=15: 1838.4 s vs 2054.5 s;
+n=20: 2604.7 s vs 2876.6 s).
+
+At the 100-iteration default, individual runs land within ~2% of optimal; hitting
+the optimum in *most* runs needs ~300 iterations (measured on n=8: 5/10 exact at
+100, 6/10 at 200, 9/10 at 300).
+
 ## Tests
 
 ```bash

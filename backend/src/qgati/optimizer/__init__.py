@@ -20,10 +20,23 @@ from qgati.optimizer.fitness import (
     route_travel_cost,
 )
 from qgati.optimizer.models import Delivery, Depot, Scenario, Solution, Vehicle
+from qgati.optimizer.qpso import (
+    DEFAULT_BETA_END,
+    DEFAULT_BETA_START,
+    DEFAULT_NUM_ITERATIONS,
+    DEFAULT_NUM_PARTICLES,
+    decode_position,
+    optimal_split,
+    run_qpso,
+)
 from qgati.optimizer.savings import clarke_wright_savings
 from qgati.optimizer.scenarios import build_random_scenario, servable_nodes
 
 __all__ = [
+    "DEFAULT_BETA_END",
+    "DEFAULT_BETA_START",
+    "DEFAULT_NUM_ITERATIONS",
+    "DEFAULT_NUM_PARTICLES",
     "Delivery",
     "Depot",
     "Evaluation",
@@ -34,8 +47,11 @@ __all__ = [
     "Vehicle",
     "build_random_scenario",
     "clarke_wright_savings",
+    "decode_position",
     "evaluate",
+    "optimal_split",
     "route_travel_cost",
+    "run_qpso",
     "servable_nodes",
     "solve_brute_force",
 ]
