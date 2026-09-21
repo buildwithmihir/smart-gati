@@ -1,0 +1,992 @@
+{
+  "run": {
+    "timestamp": "20260920T150250Z",
+    "graph": "synthetic random graph (45 nodes, edge_prob 0.22, seed 11)",
+    "graph_kind": "synthetic",
+    "instances": [
+      "8:3",
+      "15:3",
+      "25:5"
+    ],
+    "solvers": [
+      "QPSO",
+      "Classical PSO",
+      "Genetic Algorithm",
+      "ACO"
+    ],
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "iterations": 100,
+    "population": 30,
+    "scenario_seed_default": 7,
+    "sweep_iterations": [
+      100,
+      200,
+      300,
+      1000
+    ],
+    "sweep_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sweep_instances": [
+      "8:3",
+      "15:3",
+      "25:5"
+    ],
+    "python": "3.11.9"
+  },
+  "instances": [
+    {
+      "label": "n=8 k=3",
+      "n_deliveries": 8,
+      "n_vehicles": 3,
+      "scenario_seed": 7,
+      "optimal": 8025.42754529569,
+      "best_known": 8025.42754529569,
+      "algorithms": [
+        {
+          "algorithm": "brute force",
+          "runs": 1,
+          "best": 8025.42754529569,
+          "mean": 8025.42754529569,
+          "worst": 8025.42754529569,
+          "stdev": 0.0,
+          "mean_ms": 3.047599999945305,
+          "min_ms": 3.047599999945305,
+          "feasible_runs": 1,
+          "gap_vs_optimal_pct": 0.0,
+          "gap_vs_best_known_pct": 0.0,
+          "exact_hits": 1,
+          "costs": [
+            8025.42754529569
+          ],
+          "runtimes_ms": [
+            3.047599999945305
+          ]
+        },
+        {
+          "algorithm": "savings",
+          "runs": 1,
+          "best": 10000.066932731546,
+          "mean": 10000.066932731546,
+          "worst": 10000.066932731546,
+          "stdev": 0.0,
+          "mean_ms": 0.066100000140068,
+          "min_ms": 0.066100000140068,
+          "feasible_runs": 1,
+          "gap_vs_optimal_pct": 24.604787424606954,
+          "gap_vs_best_known_pct": 24.604787424606954,
+          "exact_hits": 0,
+          "costs": [
+            10000.066932731546
+          ],
+          "runtimes_ms": [
+            0.066100000140068
+          ]
+        },
+        {
+          "algorithm": "QPSO",
+          "runs": 5,
+          "best": 8025.42754529569,
+          "mean": 8077.962855805359,
+          "worst": 8156.765821569864,
+          "stdev": 64.34235211368247,
+          "mean_ms": 146.55853999997817,
+          "min_ms": 145.23400000007314,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": 0.0,
+          "gap_vs_best_known_pct": 0.0,
+          "exact_hits": 3,
+          "costs": [
+            8156.765821569864,
+            8025.42754529569,
+            8025.42754529569,
+            8156.765821569864,
+            8025.42754529569
+          ],
+          "runtimes_ms": [
+            148.23439999986476,
+            145.44729999988704,
+            145.23400000007314,
+            145.47960000004423,
+            148.39740000002166
+          ]
+        },
+        {
+          "algorithm": "Classical PSO",
+          "runs": 5,
+          "best": 8025.42754529569,
+          "mean": 8204.96463587326,
+          "worst": 8529.098169361027,
+          "stdev": 169.86199782475387,
+          "mean_ms": 152.27565999994113,
+          "min_ms": 140.78459999996085,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": 0.0,
+          "gap_vs_best_known_pct": 0.0,
+          "exact_hits": 1,
+          "costs": [
+            8529.098169361027,
+            8156.765821569864,
+            8025.42754529569,
+            8156.765821569864,
+            8156.765821569864
+          ],
+          "runtimes_ms": [
+            164.63610000005247,
+            153.19739999995363,
+            156.77059999984522,
+            140.78459999996085,
+            145.98959999989347
+          ]
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "runs": 5,
+          "best": 8025.42754529569,
+          "mean": 8025.427545295691,
+          "worst": 8025.42754529569,
+          "stdev": 0.0,
+          "mean_ms": 207.8480600000603,
+          "min_ms": 198.5754000002089,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": 0.0,
+          "gap_vs_best_known_pct": 0.0,
+          "exact_hits": 5,
+          "costs": [
+            8025.42754529569,
+            8025.42754529569,
+            8025.42754529569,
+            8025.42754529569,
+            8025.42754529569
+          ],
+          "runtimes_ms": [
+            205.57080000003225,
+            220.51170000008824,
+            213.06079999999383,
+            201.5215999999782,
+            198.5754000002089
+          ]
+        },
+        {
+          "algorithm": "ACO",
+          "runs": 5,
+          "best": 8025.42754529569,
+          "mean": 8025.427545295691,
+          "worst": 8025.42754529569,
+          "stdev": 0.0,
+          "mean_ms": 282.01792000008936,
+          "min_ms": 274.83380000012403,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": 0.0,
+          "gap_vs_best_known_pct": 0.0,
+          "exact_hits": 5,
+          "costs": [
+            8025.42754529569,
+            8025.42754529569,
+            8025.42754529569,
+            8025.42754529569,
+            8025.42754529569
+          ],
+          "runtimes_ms": [
+            287.7602000000934,
+            291.89370000017334,
+            274.83380000012403,
+            277.24140000009356,
+            278.3604999999625
+          ]
+        }
+      ]
+    },
+    {
+      "label": "n=15 k=3",
+      "n_deliveries": 15,
+      "n_vehicles": 3,
+      "scenario_seed": 7,
+      "optimal": null,
+      "best_known": 9728.431498863945,
+      "algorithms": [
+        {
+          "algorithm": "savings",
+          "runs": 1,
+          "best": 12055.975509517451,
+          "mean": 12055.975509517451,
+          "worst": 12055.975509517451,
+          "stdev": 0.0,
+          "mean_ms": 0.11430000017753628,
+          "min_ms": 0.11430000017753628,
+          "feasible_runs": 1,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 23.92517242810734,
+          "exact_hits": null,
+          "costs": [
+            12055.975509517451
+          ],
+          "runtimes_ms": [
+            0.11430000017753628
+          ]
+        },
+        {
+          "algorithm": "QPSO",
+          "runs": 5,
+          "best": 9728.431498863945,
+          "mean": 10365.912219284572,
+          "worst": 10693.8006293061,
+          "stdev": 349.8599977032452,
+          "mean_ms": 235.10228000000097,
+          "min_ms": 230.91339999996308,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 0.0,
+          "exact_hits": null,
+          "costs": [
+            10376.271784839093,
+            10693.8006293061,
+            9728.431498863945,
+            10352.371959543107,
+            10678.685223870616
+          ],
+          "runtimes_ms": [
+            235.5577999999241,
+            233.95170000003418,
+            241.96170000004713,
+            230.91339999996308,
+            233.12680000003638
+          ]
+        },
+        {
+          "algorithm": "Classical PSO",
+          "runs": 5,
+          "best": 10500.581621235455,
+          "mean": 11348.79086078717,
+          "worst": 11778.564876446319,
+          "stdev": 452.1601874658717,
+          "mean_ms": 230.5874400000448,
+          "min_ms": 227.27580000014314,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 7.937046403232409,
+          "exact_hits": null,
+          "costs": [
+            11306.23920929081,
+            10500.581621235455,
+            11778.564876446319,
+            11508.522499593826,
+            11650.046097369448
+          ],
+          "runtimes_ms": [
+            229.8172999999224,
+            235.52280000012615,
+            229.53610000013214,
+            230.78519999990021,
+            227.27580000014314
+          ]
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "runs": 5,
+          "best": 10240.270357111072,
+          "mean": 10794.327287402586,
+          "worst": 11259.15628714975,
+          "stdev": 337.83780016422065,
+          "mean_ms": 295.48909999998614,
+          "min_ms": 292.54249999985404,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 5.261268050321349,
+          "exact_hits": null,
+          "costs": [
+            10686.36441947343,
+            10802.01413716186,
+            10240.270357111072,
+            11259.15628714975,
+            10983.831236116815
+          ],
+          "runtimes_ms": [
+            292.54249999985404,
+            297.61210000015126,
+            297.35749999986183,
+            294.7096000000329,
+            295.2238000000307
+          ]
+        },
+        {
+          "algorithm": "ACO",
+          "runs": 5,
+          "best": 9768.72261526406,
+          "mean": 9906.901886899861,
+          "worst": 10000.285265954335,
+          "stdev": 94.71542034915021,
+          "mean_ms": 550.7233000000269,
+          "min_ms": 542.1945000000505,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 0.414158401637709,
+          "exact_hits": null,
+          "costs": [
+            9768.72261526406,
+            9822.857577717732,
+            10000.285265954335,
+            10000.285265954335,
+            9942.358709608841
+          ],
+          "runtimes_ms": [
+            553.5074000001714,
+            558.569099999886,
+            554.4999999999618,
+            544.8455000000649,
+            542.1945000000505
+          ]
+        }
+      ]
+    },
+    {
+      "label": "n=25 k=5",
+      "n_deliveries": 25,
+      "n_vehicles": 5,
+      "scenario_seed": 7,
+      "optimal": null,
+      "best_known": 16190.372621175413,
+      "algorithms": [
+        {
+          "algorithm": "savings",
+          "runs": 1,
+          "best": 23118.1479003862,
+          "mean": 23118.1479003862,
+          "worst": 23118.1479003862,
+          "stdev": 0.0,
+          "mean_ms": 0.26009999987763877,
+          "min_ms": 0.26009999987763877,
+          "feasible_runs": 1,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 42.789473975107526,
+          "exact_hits": null,
+          "costs": [
+            23118.1479003862
+          ],
+          "runtimes_ms": [
+            0.26009999987763877
+          ]
+        },
+        {
+          "algorithm": "QPSO",
+          "runs": 5,
+          "best": 20485.396886072052,
+          "mean": 21386.130697845176,
+          "worst": 22176.56105986023,
+          "stdev": 708.280162779904,
+          "mean_ms": 874.3885800000498,
+          "min_ms": 505.1885999998831,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 26.52826074724908,
+          "exact_hits": null,
+          "costs": [
+            21932.43159139844,
+            22176.56105986023,
+            20485.396886072052,
+            21750.674178829046,
+            20585.589773066113
+          ],
+          "runtimes_ms": [
+            513.726300000144,
+            2300.4461000000447,
+            532.9960000001392,
+            519.5859000000382,
+            505.1885999998831
+          ]
+        },
+        {
+          "algorithm": "Classical PSO",
+          "runs": 5,
+          "best": 18226.52926152175,
+          "mean": 19161.9491037505,
+          "worst": 20863.425768899062,
+          "stdev": 923.5198952236867,
+          "mean_ms": 838.8277800000651,
+          "min_ms": 500.3675000000385,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 12.576342052086225,
+          "exact_hits": null,
+          "costs": [
+            19242.933451595396,
+            20863.425768899062,
+            18992.50923783387,
+            18484.34779890243,
+            18226.52926152175
+          ],
+          "runtimes_ms": [
+            515.0270000001456,
+            2105.11200000019,
+            536.4979999999377,
+            500.3675000000385,
+            537.1344000000136
+          ]
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "runs": 5,
+          "best": 17945.473690665254,
+          "mean": 18725.176591503765,
+          "worst": 19441.490426951408,
+          "stdev": 579.0083637100238,
+          "mean_ms": 894.5650399999977,
+          "min_ms": 579.847799999925,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 10.840399480332788,
+          "exact_hits": null,
+          "costs": [
+            18324.89369092472,
+            19441.490426951408,
+            19336.14912989582,
+            18577.87601908163,
+            17945.473690665254
+          ],
+          "runtimes_ms": [
+            586.8415999998433,
+            2124.116400000048,
+            589.1429000000699,
+            592.8765000001022,
+            579.847799999925
+          ]
+        },
+        {
+          "algorithm": "ACO",
+          "runs": 5,
+          "best": 16190.372621175413,
+          "mean": 16343.219759027173,
+          "worst": 16432.124657678185,
+          "stdev": 89.15855124585545,
+          "mean_ms": 1316.0389600000144,
+          "min_ms": 1037.3657000000094,
+          "feasible_runs": 5,
+          "gap_vs_optimal_pct": null,
+          "gap_vs_best_known_pct": 0.0,
+          "exact_hits": null,
+          "costs": [
+            16319.243657444456,
+            16190.372621175413,
+            16342.233201159634,
+            16432.124657678185,
+            16432.124657678185
+          ],
+          "runtimes_ms": [
+            1111.9396999999935,
+            2141.5194000001065,
+            1062.7574999998615,
+            1226.6125000001011,
+            1037.3657000000094
+          ]
+        }
+      ]
+    }
+  ],
+  "sweep": [
+    {
+      "instance": "n=8 k=3",
+      "points": [
+        {
+          "algorithm": "QPSO",
+          "iterations": 100,
+          "mean_cost": 8077.962855805359,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 143.2761799999298,
+          "min_ms": 140.24389999985942,
+          "exact_hits": 3,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 100,
+          "mean_cost": 8204.96463587326,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 142.616980000048,
+          "min_ms": 141.03540000019166,
+          "exact_hits": 1,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 100,
+          "mean_cost": 8025.427545295691,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 201.44101999999293,
+          "min_ms": 197.92280000001483,
+          "exact_hits": 5,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 100,
+          "mean_cost": 8025.427545295691,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 275.23722000000816,
+          "min_ms": 266.33929999979955,
+          "exact_hits": 5,
+          "seeds": 5
+        },
+        {
+          "algorithm": "QPSO",
+          "iterations": 200,
+          "mean_cost": 8051.6952005505245,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 301.8471999999747,
+          "min_ms": 286.79379999994126,
+          "exact_hits": 4,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 200,
+          "mean_cost": 8220.86135032973,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 292.49307999994016,
+          "min_ms": 287.2732000000724,
+          "exact_hits": 2,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 200,
+          "mean_cost": 8025.427545295691,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 412.6177600000574,
+          "min_ms": 400.49160000012307,
+          "exact_hits": 5,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 200,
+          "mean_cost": 8025.427545295691,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 554.4608799999878,
+          "min_ms": 546.2592999999742,
+          "exact_hits": 5,
+          "seeds": 5
+        },
+        {
+          "algorithm": "QPSO",
+          "iterations": 300,
+          "mean_cost": 8051.6952005505245,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 434.69389999995656,
+          "min_ms": 423.9511000000675,
+          "exact_hits": 4,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 300,
+          "mean_cost": 8288.126935446326,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 432.6792399999704,
+          "min_ms": 428.0825000000732,
+          "exact_hits": 1,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 300,
+          "mean_cost": 8025.427545295691,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 612.1727799999917,
+          "min_ms": 603.0582000000777,
+          "exact_hits": 5,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 300,
+          "mean_cost": 8025.427545295691,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 825.4920200000015,
+          "min_ms": 813.3559000000332,
+          "exact_hits": 5,
+          "seeds": 5
+        },
+        {
+          "algorithm": "QPSO",
+          "iterations": 1000,
+          "mean_cost": 8051.6952005505245,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 1454.297059999999,
+          "min_ms": 1425.4661999998461,
+          "exact_hits": 4,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 1000,
+          "mean_cost": 8127.5555492681715,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 1439.8107400000754,
+          "min_ms": 1413.1661999999778,
+          "exact_hits": 2,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 1000,
+          "mean_cost": 8025.427545295691,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 2051.0164000000714,
+          "min_ms": 2017.1635000001515,
+          "exact_hits": 5,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 1000,
+          "mean_cost": 8025.427545295691,
+          "best_cost": 8025.42754529569,
+          "mean_ms": 2753.138919999992,
+          "min_ms": 2696.803999999929,
+          "exact_hits": 5,
+          "seeds": 5
+        }
+      ]
+    },
+    {
+      "instance": "n=15 k=3",
+      "points": [
+        {
+          "algorithm": "QPSO",
+          "iterations": 100,
+          "mean_cost": 10365.912219284572,
+          "best_cost": 9728.431498863945,
+          "mean_ms": 237.95094000001882,
+          "min_ms": 234.96240000008584,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 100,
+          "mean_cost": 11348.79086078717,
+          "best_cost": 10500.581621235455,
+          "mean_ms": 231.97650000001886,
+          "min_ms": 226.07590000006894,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 100,
+          "mean_cost": 10794.327287402586,
+          "best_cost": 10240.270357111072,
+          "mean_ms": 292.74477999992996,
+          "min_ms": 287.38960000009683,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 100,
+          "mean_cost": 9906.901886899861,
+          "best_cost": 9768.72261526406,
+          "mean_ms": 542.6817000000028,
+          "min_ms": 530.5138999999599,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "QPSO",
+          "iterations": 200,
+          "mean_cost": 10423.02001648746,
+          "best_cost": 9847.932630755055,
+          "mean_ms": 727.5946199999908,
+          "min_ms": 449.9891000000389,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 200,
+          "mean_cost": 11090.004454168633,
+          "best_cost": 10434.618020297941,
+          "mean_ms": 772.9806199999985,
+          "min_ms": 448.23919999998907,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 200,
+          "mean_cost": 10255.690918049018,
+          "best_cost": 9816.462766053564,
+          "mean_ms": 1330.1939600000424,
+          "min_ms": 576.1261000000104,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 200,
+          "mean_cost": 9823.071047498775,
+          "best_cost": 9730.957601506068,
+          "mean_ms": 2696.625119999999,
+          "min_ms": 1077.8639999998632,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "QPSO",
+          "iterations": 300,
+          "mean_cost": 10319.521809677517,
+          "best_cost": 10077.625840173998,
+          "mean_ms": 698.372320000044,
+          "min_ms": 683.2663000000139,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 300,
+          "mean_cost": 10689.692902735642,
+          "best_cost": 10321.053895140709,
+          "mean_ms": 697.3398400000406,
+          "min_ms": 677.5982999999997,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 300,
+          "mean_cost": 10068.414752274413,
+          "best_cost": 9816.462766053564,
+          "mean_ms": 889.6472999999332,
+          "min_ms": 874.7704999998405,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 300,
+          "mean_cost": 9823.071047498775,
+          "best_cost": 9730.957601506068,
+          "mean_ms": 1643.962720000036,
+          "min_ms": 1608.276700000033,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "QPSO",
+          "iterations": 1000,
+          "mean_cost": 10385.714960800802,
+          "best_cost": 9883.47763502943,
+          "mean_ms": 2425.385379999989,
+          "min_ms": 2300.0207000000046,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 1000,
+          "mean_cost": 10691.958935571985,
+          "best_cost": 10232.541079146404,
+          "mean_ms": 3395.3052999999727,
+          "min_ms": 2248.729499999854,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 1000,
+          "mean_cost": 9909.169818574179,
+          "best_cost": 9728.431498863945,
+          "mean_ms": 6378.290579999975,
+          "min_ms": 2891.8952999999874,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 1000,
+          "mean_cost": 9793.650589984663,
+          "best_cost": 9730.957601506068,
+          "mean_ms": 5480.717940000022,
+          "min_ms": 5413.677400000097,
+          "exact_hits": null,
+          "seeds": 5
+        }
+      ]
+    },
+    {
+      "instance": "n=25 k=5",
+      "points": [
+        {
+          "algorithm": "QPSO",
+          "iterations": 100,
+          "mean_cost": 21386.130697845176,
+          "best_cost": 20485.396886072052,
+          "mean_ms": 529.5976600000358,
+          "min_ms": 515.4107000000749,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 100,
+          "mean_cost": 19161.9491037505,
+          "best_cost": 18226.52926152175,
+          "mean_ms": 516.4410199999566,
+          "min_ms": 506.23429999996006,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 100,
+          "mean_cost": 18725.176591503765,
+          "best_cost": 17945.473690665254,
+          "mean_ms": 584.3655599999693,
+          "min_ms": 579.3967999998131,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 100,
+          "mean_cost": 16343.219759027173,
+          "best_cost": 16190.372621175413,
+          "mean_ms": 1068.73614000001,
+          "min_ms": 1037.7392999998847,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "QPSO",
+          "iterations": 200,
+          "mean_cost": 20187.290326160815,
+          "best_cost": 19333.25178250021,
+          "mean_ms": 2786.40577999995,
+          "min_ms": 1035.0998999999774,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 200,
+          "mean_cost": 19163.44919992034,
+          "best_cost": 18054.846263313168,
+          "mean_ms": 2776.508019999983,
+          "min_ms": 1064.9359999999888,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 200,
+          "mean_cost": 18202.381420628542,
+          "best_cost": 17816.55843496012,
+          "mean_ms": 2271.5880600000673,
+          "min_ms": 1139.3605000000662,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 200,
+          "mean_cost": 16343.219759027173,
+          "best_cost": 16190.372621175413,
+          "mean_ms": 6511.519080000016,
+          "min_ms": 2083.850400000074,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "QPSO",
+          "iterations": 300,
+          "mean_cost": 19496.82097346119,
+          "best_cost": 17040.517446596186,
+          "mean_ms": 2675.5449000000226,
+          "min_ms": 1509.8535000001903,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 300,
+          "mean_cost": 19135.47547323779,
+          "best_cost": 17815.704881440648,
+          "mean_ms": 2677.3706200000106,
+          "min_ms": 1514.3188999998074,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 300,
+          "mean_cost": 17984.59905425823,
+          "best_cost": 17555.42759697533,
+          "mean_ms": 1938.8240999999653,
+          "min_ms": 1720.677300000034,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 300,
+          "mean_cost": 16343.219759027173,
+          "best_cost": 16190.372621175413,
+          "mean_ms": 3180.2051199999823,
+          "min_ms": 3105.510200000026,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "QPSO",
+          "iterations": 1000,
+          "mean_cost": 17920.602600574282,
+          "best_cost": 16960.537882850902,
+          "mean_ms": 5055.491299999949,
+          "min_ms": 5021.25389999992,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Classical PSO",
+          "iterations": 1000,
+          "mean_cost": 18305.715534367133,
+          "best_cost": 17746.6376440004,
+          "mean_ms": 5028.239499999972,
+          "min_ms": 4978.391899999906,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "Genetic Algorithm",
+          "iterations": 1000,
+          "mean_cost": 17277.960919855122,
+          "best_cost": 16981.57092351514,
+          "mean_ms": 6539.521540000123,
+          "min_ms": 5702.397400000109,
+          "exact_hits": null,
+          "seeds": 5
+        },
+        {
+          "algorithm": "ACO",
+          "iterations": 1000,
+          "mean_cost": 16322.810623495883,
+          "best_cost": 16190.372621175413,
+          "mean_ms": 12507.145079999964,
+          "min_ms": 10162.096100000099,
+          "exact_hits": null,
+          "seeds": 5
+        }
+      ]
+    }
+  ]
+}

@@ -87,8 +87,13 @@ print(evaluate(optimal, scenario, costs).summary())
 | `models`               | `Depot`, `Delivery`, `Vehicle`, `Scenario`, `Solution` — the contract every solver consumes |
 | `scenarios`            | `build_random_scenario` — draws only from the largest strongly-connected subgraph |
 | `fitness`              | `evaluate` — shared cost + penalty function all solvers are scored by |
+| `decoding`             | permutation/random-keys → routes, via Prins' optimal capacity split — shared by every metaheuristic |
 | `brute_force`          | Exact (Held-Karp + partition search), ground truth for small instances |
-| `savings`              | Clarke-Wright Savings — the heuristic baseline              |
+| `savings`              | Clarke-Wright Savings — the constructive baseline           |
+| `qpso`                 | Quantum-behaved PSO — the headline solver                   |
+| `classical_pso`        | Velocity-driven PSO — the control that isolates the quantum update |
+| `genetic_algorithm`    | GA — order crossover + swap mutation                        |
+| `aco`                  | Ant Colony Optimization — pheromone construction           |
 
 `Solution.routes` always holds **exactly one entry per vehicle** (unused vehicles
 empty), so "more vehicles than the fleet has" is unrepresentable rather than
@@ -170,6 +175,157 @@ n=20: 2604.7 s vs 2876.6 s).
 At the 100-iteration default, individual runs land within ~2% of optimal; hitting
 the optimum in *most* runs needs ~300 iterations (measured on n=8: 5/10 exact at
 100, 6/10 at 200, 9/10 at 300).
+
+## Baseline solvers
+
+Four metaheuristics now sit behind one contract, so they can be compared on
+identical instances — see [Benchmarks](#benchmarks).
+
+| Solver | Operators / update | Role |
+| --- | --- | --- |
+| `run_qpso` | quantum well sampling, `beta` 1.0 → 0.5 | the headline solver |
+| `run_classical_pso` | `v = w·v + c₁r₁(pbest−x) + c₂r₂(gbest−x)`, `w` 0.9 → 0.4 | **the control** — isolates what the quantum update adds |
+| `run_genetic_algorithm` | k-way tournament, order crossover (OX1), swap mutation, 1 elite | evolutionary baseline |
+| `run_aco` | `tau^α · (1/cost)^β` roulette construction, evaporation 0.1 + reinforcement | pheromone baseline |
+
+All four take `(cost_matrix, scenario, ...)`, return
+`(solution, cost, convergence_history)`, and decode through `qgati.optimizer.decoding`.
+
+```python
+from qgati.optimizer import run_qpso, run_classical_pso, run_genetic_algorithm, run_aco
+
+for run in (run_qpso, run_classical_pso, run_genetic_algorithm, run_aco):
+    solution, cost, history = run(costs, scenario, seed=42)
+    print(run.__name__, cost)
+```
+
+### Why classical PSO is here
+
+`classical_pso` exists only to make the QPSO claim falsifiable. It shares QPSO's
+representation, decoder, cost function, initialisation and contraction schedule
+(`w` 0.9 → 0.4 against QPSO's `beta` 1.0 → 0.5), and even **imports** QPSO's
+`num_particles` / `num_iterations` constants rather than restating them, so
+tuning one solver cannot silently stop the pair from being comparable. The only
+difference is the update rule: classical PSO moves particles through an
+accumulated velocity, QPSO samples the next position from a probability
+distribution and can therefore tunnel out of a local optimum in one step.
+
+### Why every metaheuristic shares one decoder
+
+Capacity behaviour lives in `decoding`, not in the solvers. Every candidate is
+made feasible by construction — the permutation is cut by an exact split, and
+ACO's ants filter their candidate set to what fits the current vehicle. The
+result is that a difference between two rows of the benchmark table is a
+difference in *search quality*, not in how well a solver happened to handle
+capacity. It also means all four return feasible solutions on every instance
+measured so far, with no repair step anywhere.
+
+## Benchmarks
+
+`benchmarks/run_comparison.py` runs every solver on the same cost matrices and
+prints a comparison table plus an iteration sweep.
+
+```bash
+cd backend
+uv run python benchmarks/run_comparison.py            # synthetic graph, n=8/15/25
+uv run python benchmarks/run_comparison.py --real     # real Delhi graph
+uv run python benchmarks/run_comparison.py --quick     # smoke test
+```
+
+Results land in `benchmarks/results/` as a timestamped set: a `.json` with the
+complete record (every per-seed cost and runtime) plus `_comparison.csv` and
+`_sweep.csv` for pasting into a report.
+
+Two methodological notes, because they affect how the numbers should be read:
+
+**Timings use min-of-seeds as well as the mean.** A laptop throttles under
+sustained load, and a first version of this runner showed ACO at 511 ms in one
+table and 109 ms in another for the identical work — an artifact of it always
+being measured last. The runner now interleaves solvers per seed so they all
+sample the same thermal conditions, and reports `ms min` alongside `ms mean`.
+Compare solvers on `ms min`; the gap between them is how much the machine was
+throttling.
+
+**The sweep is the evidence for the default budget.** 30 particles × 100
+iterations is a choice, not a law, and the sweep is what defends it — see the
+iteration-sweep table in the results.
+
+### Results — 5 seeds, equal iteration budget
+
+Synthetic graph (45 nodes, `edge_prob` 0.22, seed 11), population 30 for all four
+solvers. `best` / `mean` are travel cost; lower is better.
+
+**n=8 k=3 — exact optimum 8025.4**
+
+| Solver | best | mean | exact hits | ms min |
+| --- | --- | --- | --- | --- |
+| brute force | 8025.4 | 8025.4 | 1/1 | 3 |
+| savings | 10000.1 | 10000.1 | 0/1 | 0 |
+| QPSO | 8025.4 | 8078.0 | 3/5 | 145 |
+| Classical PSO | 8025.4 | 8205.0 | 1/5 | 141 |
+| Genetic Algorithm | 8025.4 | **8025.4** | **5/5** | 199 |
+| ACO | 8025.4 | **8025.4** | **5/5** | 275 |
+
+**n=15 k=3 — no exact answer available**
+
+| Solver | best | mean | gap vs best | ms min |
+| --- | --- | --- | --- | --- |
+| savings | 12056.0 | 12056.0 | +23.9% | 0 |
+| QPSO | **9728.4** | 10365.9 | 0.0% | 231 |
+| Classical PSO | 10500.6 | 11348.8 | +7.9% | 227 |
+| Genetic Algorithm | 10240.3 | 10794.3 | +5.3% | 293 |
+| ACO | 9768.7 | **9906.9** | +0.4% | 542 |
+
+**n=25 k=5 — no exact answer available**
+
+| Solver | best | mean | gap vs best | ms min |
+| --- | --- | --- | --- | --- |
+| savings | 23118.1 | 23118.1 | +42.8% | 0 |
+| QPSO | 20485.4 | 21386.1 | +26.5% | 505 |
+| Classical PSO | 18226.5 | 19161.9 | +12.6% | 500 |
+| Genetic Algorithm | 17945.5 | 18725.2 | +10.8% | 580 |
+| ACO | **16190.4** | **16343.2** | 0.0% | 1037 |
+
+### What the benchmark actually shows
+
+**QPSO is not the strongest solver here.** ACO wins at every size, GA is second
+at n=8 and n=25, and QPSO is third — last but one — despite ACO costing about
+twice the wall time per iteration. This is worth stating plainly rather than
+burying: the project's headline solver does not currently justify its place on
+quality alone, and the equal-budget n=25 sweep below shows that giving QPSO a 30×
+larger budget does not change the ordering.
+
+**What *is* supported is the narrower claim.** At equal budget QPSO beats
+classical PSO — by 5.9% at n=25 with 3,000 iterations, and on n=8 it hits the
+exact optimum in 3/5 runs against classical PSO's 1/5. Since the two differ
+*only* in the update rule, that difference is attributable to the quantum
+sampling. The pattern behind it is consistent: quantum sampling explores more
+broadly, so it converges slowly early and better asymptotically. At n=25 with
+only 100 iterations there is not enough budget to exploit that, and QPSO is
+*behind* classical PSO (21,386 against 19,162) — the quantum update is a
+long-budget technique.
+
+**ACO is nearly budget-insensitive**, which is the more interesting result of the
+two: 16,343 → 16,283 mean over 100 → 3,000 iterations, a 0.4% gain for 30× the
+compute. Its strength is the greedy `1/cost^2` construction, not the pheromone
+learning, and it is effectively a very strong constructive heuristic wearing an
+ACO's clothes.
+
+### The equal-budget sweep, n=25 k=5 (mean cost)
+
+| iterations | QPSO | Classical PSO | Genetic Algorithm | ACO |
+| --- | --- | --- | --- | --- |
+| 100 | 21386.1 | 19161.9 | 18725.2 | **16343.2** |
+| 300 | 19496.8 | 19135.5 | 17984.6 | **16343.2** |
+| 1000 | 17920.6 | 18305.7 | 17278.0 | **16322.8** |
+| 3000 | 17359.8 | 18446.3 | 16797.3 | **16282.6** |
+
+QPSO is the most budget-sensitive solver (a 19% improvement from 100 → 3,000
+iterations) and still finishes third. One caveat on the timing column of this
+sweep: the run that produced it straddled a laptop suspend, so the `ms mean` of
+one cell (`ACO @ 300`) is inflated by ~6.7 hours of wall clock. Quality figures
+are unaffected — they are deterministic per seed and reproduced bit-identically
+across two independent runs — and `ms min` stays valid, which is why it exists.
 
 ## Tests
 

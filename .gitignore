@@ -33,6 +33,10 @@ next-env.d.ts
 backend/data/cache/*
 !backend/data/cache/.gitkeep
 
+# --- Benchmark progress logs (transient per-event diagnostics, rewritten each
+# run; the results .json/.csv beside them are kept as evidence) ---
+backend/benchmarks/results/*_progress.jsonl
+
 # --- Claude Code local settings ---
 .claude/settings.local.json
 
