@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 """Phase 4 benchmark: every VRP solver, identical instances, one comparison table.
 
-The question this answers is "why QPSO?" — which is only answerable by running
-the alternatives on the *same* cost matrices and reporting the honest numbers.
-So every solver here is handed the identical ``CostMatrix`` for an instance, is
-scored through the same :func:`~qgati.optimizer.fitness.evaluate`, and appears in
-one table with its best cost, its runtime, and its optimality gap.
+The question this answers is "which solver should this project use?" — which is
+only answerable by running the candidates on the *same* cost matrices and
+reporting the honest numbers. So every solver here is handed the identical
+``CostMatrix`` for an instance, is scored through the same
+:func:`~qgati.optimizer.fitness.evaluate`, and appears in one table with its best
+cost, its runtime, and its optimality gap.
 
 What is compared
 ----------------
@@ -14,20 +15,20 @@ solver                 kind        role
 =====================  ==========  ==================================================
 ``brute force``        exact       ground truth — only for n <= 10
 ``savings``            heuristic   constructive baseline (Clarke-Wright)
+``ACO``                metaheuristic  the production default (see the registry)
 ``genetic algorithm``  metaheuristic
 ``classical PSO``      metaheuristic  the control: isolates QPSO's quantum update
-``ACO``                metaheuristic
-``QPSO``               metaheuristic  the project's headline solver
+``QPSO``               metaheuristic  the research contribution
 =====================  ==========  ==================================================
 
 Two tables come out, and the second matters as much as the first:
 
 1. **The comparison** — per instance, per algorithm: best / mean / worst cost,
    mean runtime, and gap against the exact optimum.
-2. **The iteration sweep** — QPSO's (and the other metaheuristics') quality as a
-   function of generation budget at 100 / 200 / 300 / 1000 iterations, with the
-   rate at which each exact optimum is hit. The default budget of 100 is a
-   choice, and this is the evidence that defends it.
+2. **The iteration sweep** — every metaheuristic's quality as a function of
+   generation budget at 100 / 200 / 300 / 1000 iterations, with the rate at which
+   each exact optimum is hit. The default budget of 100 is a choice, and this is
+   the evidence that defends it.
 
 Reading the numbers
 -------------------
@@ -72,15 +73,13 @@ from qgati.optimizer import (
     MAX_EXACT_DELIVERIES,
     Scenario,
     Solution,
+    SolverSpec,
     build_random_scenario,
     clarke_wright_savings,
     evaluate,
-    run_aco,
-    run_classical_pso,
-    run_genetic_algorithm,
-    run_qpso,
     solve_brute_force,
 )
+from qgati.optimizer.registry import SOLVERS
 
 #: A stochastic run this close to the optimum counts as having found it.
 EXACT_TOLERANCE = 1e-6
@@ -103,38 +102,12 @@ DEFAULT_INSTANCES = ("8:3", "15:3", "25:5")
 # --------------------------------------------------------------------------- #
 # Solver registry
 # --------------------------------------------------------------------------- #
-@dataclass(frozen=True)
-class Metaheuristic:
-    """A stochastic solver, plus how to feed it a budget.
-
-    The four solvers name their budget and population arguments differently on
-    purpose — ``num_generations`` reads better in a GA than ``num_iterations`` —
-    so the adapter carries the names rather than distorting the solvers' APIs.
-    """
-
-    name: str
-    run: Callable[..., tuple[Solution, float, list[float]]]
-    budget_kwarg: str
-    population_kwarg: str
-
-    def __call__(
-        self, cost_matrix, scenario: Scenario, *, seed: int, population: int, iterations: int
-    ) -> tuple[Solution, float, list[float]]:
-        return self.run(
-            cost_matrix,
-            scenario,
-            seed=seed,
-            **{self.budget_kwarg: iterations, self.population_kwarg: population},
-        )
-
-
-METAHEURISTICS: tuple[Metaheuristic, ...] = (
-    Metaheuristic("QPSO", run_qpso, "num_iterations", "num_particles"),
-    Metaheuristic("Classical PSO", run_classical_pso, "num_iterations", "num_particles"),
-    Metaheuristic(
-        "Genetic Algorithm", run_genetic_algorithm, "num_generations", "population_size"
-    ),
-    Metaheuristic("ACO", run_aco, "num_iterations", "num_ants"),
+# The solver list itself lives in qgati.optimizer.registry, so the benchmark and
+# the API cannot disagree about which algorithms exist. The benchmark compares
+# only the metaheuristics; brute force and Savings are reported as baselines by
+# run_instance, which needs their exact/non-seed behaviour explicitly.
+METAHEURISTICS: tuple[SolverSpec, ...] = tuple(
+    spec for spec in SOLVERS if spec.is_stochastic
 )
 
 
@@ -370,7 +343,7 @@ def run_instance(
     seeds: Sequence[int],
     population: int,
     iterations: int,
-    solvers: Sequence[Metaheuristic] = METAHEURISTICS,
+    solvers: Sequence[SolverSpec] = METAHEURISTICS,
     label: str,
     scenario_seed: int,
     progress: ProgressLog | None = None,
@@ -503,7 +476,7 @@ def run_sweep(
     budgets: Sequence[int],
     seeds: Sequence[int],
     population: int,
-    solvers: Sequence[Metaheuristic] = METAHEURISTICS,
+    solvers: Sequence[SolverSpec] = METAHEURISTICS,
     label: str = "",
     progress: ProgressLog | None = None,
 ) -> list[SweepPoint]:

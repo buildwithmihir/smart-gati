@@ -54,6 +54,14 @@ from qgati.optimizer.qpso import (
     DEFAULT_NUM_PARTICLES,
     run_qpso,
 )
+from qgati.optimizer.registry import (
+    DEFAULT_SOLVER_KEY,
+    SOLVERS,
+    SolverSpec,
+    default_solver,
+    get_solver,
+    solver_keys,
+)
 from qgati.optimizer.savings import clarke_wright_savings
 from qgati.optimizer.scenarios import build_random_scenario, servable_nodes
 
@@ -62,6 +70,8 @@ __all__ = [
     "DEFAULT_BETA_START",
     "DEFAULT_NUM_ITERATIONS",
     "DEFAULT_NUM_PARTICLES",
+    "DEFAULT_SOLVER_KEY",
+    "SOLVERS",
     "Delivery",
     "Depot",
     "Evaluation",
@@ -69,13 +79,16 @@ __all__ = [
     "PenaltyConfig",
     "Scenario",
     "Solution",
+    "SolverSpec",
     "Vehicle",
     "assemble_routes",
     "build_random_scenario",
     "clarke_wright_savings",
     "decode_permutation",
     "decode_position",
+    "default_solver",
     "evaluate",
+    "get_solver",
     "greedy_split",
     "optimal_split",
     "route_travel_cost",
@@ -84,5 +97,6 @@ __all__ = [
     "run_genetic_algorithm",
     "run_qpso",
     "servable_nodes",
+    "solver_keys",
     "solve_brute_force",
 ]

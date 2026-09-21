@@ -1,6 +1,16 @@
 # Q-Gati Backend
 
-FastAPI service and optimization engine. Managed with [uv](https://docs.astral.sh/uv/).
+A **multi-algorithm VRP framework** — six solvers behind one contract, benchmarked
+against each other on identical cost matrices — plus the FastAPI service around
+it. **ACO is the production default**, chosen on Phase 4's measured results
+rather than on the project's original premise: it was empirically dominant at
+every tested scale (best cost and best mean at n=15 and n=25, exact optimum 5/5
+at n=8, and nearly budget-insensitive). QPSO remains the research contribution
+and the reason the harness exists — it beats classical PSO at equal budget, which
+is the quantum-update claim worth testing. See
+[What the benchmark actually shows](#what-the-benchmark-actually-shows).
+
+Managed with [uv](https://docs.astral.sh/uv/).
 
 ## Setup
 
@@ -24,6 +34,98 @@ curl http://127.0.0.1:8000/health
 ```
 
 Interactive docs are at http://127.0.0.1:8000/docs.
+
+### Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Liveness probe |
+| `GET` | `/solvers` | Every registered solver, and which is the production default |
+| `GET` | `/graph/servable` | How many mutually-reachable nodes scenarios draw from |
+| `POST` | `/scenarios` | Create a scenario — generated at random, or described explicitly |
+| `GET` | `/scenarios` | List stored scenarios |
+| `GET` | `/scenarios/{scenario_id}` | Fetch one |
+| `GET` | `/graph/delhi` | The road network as GeoJSON, optionally scoped to a scenario or a bbox |
+| `POST` | `/optimize/{scenario_id}` | Run one solver on a stored scenario |
+| `GET` | `/optimize/{scenario_id}/compare` | Run every solver on the same cost matrix |
+
+**`POST /optimize/{scenario_id}` defaults to ACO**, the production solver. Note
+that the scenario is named by the **URL**, never the body: the body carries only
+*how* to solve, so the two kinds of input cannot drift into one payload. `GET
+/optimize/{id}/compare` runs all six — that is where QPSO's comparative role
+lives, next to the production default on identical costs.
+
+### A worked example
+
+```bash
+# Create an instance on the real Delhi graph and keep its id.
+SID=$(curl -s -X POST localhost:8000/scenarios -H 'Content-Type: application/json' \
+  -d '{"kind":"generate","n_deliveries":12,"n_vehicles":3,"seed":21}' \
+  | python -c "import json,sys; print(json.load(sys.stdin)['scenario_id'])")
+
+# Optimize it with the production default; no solver name needed.
+# The scenario id goes in the URL, not the body.
+curl -s -X POST "localhost:8000/optimize/$SID" -H 'Content-Type: application/json' \
+  -d '{"seed":0}'
+```
+
+The response resolves the solver's internal delivery *indices* back into ids and
+road-graph nodes, so it is directly renderable:
+
+```json
+{
+  "solver": "aco", "cost": 1768.7, "travel_cost": 1768.7, "feasible": true,
+  "runtime_ms": 456, "iterations": 100, "population": 30,
+  "routes": [
+    {"vehicle_id": "V0", "load": 29, "capacity": 29, "travel_cost": 988.8,
+     "stops": [{"delivery_id": "D1", "node": 928490302}, ...]}
+  ]
+}
+```
+
+Compare, on a scenario small enough for an exact answer — an `n=10, k=3`
+instance created with `{"kind":"generate","n_deliveries":10,"n_vehicles":3,
+"seed":21}` and solved at solver `seed=0`:
+
+```
+GET /optimize/{scenario_id}/compare?seed=0
+
+exact optimum: 1492.7
+solver               travel_cost     ms gap_opt%
+Brute Force               1492.7     25     0.00
+Savings                   1622.3      2     8.68
+ACO                       1502.3    309     0.65
+Genetic Algorithm         1492.7    215     0.00
+Classical PSO             1622.3    144     8.69
+QPSO                      1502.3    149     0.65
+```
+
+Read that as one instance, not a ranking: at `n=10` three of the six solvers land
+exactly on the optimum, so the instance barely separates them. The ordering that
+justifies ACO as the default comes from the multi-instance benchmark below, not
+from a single row of this table.
+
+### API design notes
+
+**The road graph is a dependency, not a global.** `get_graph` is a FastAPI
+dependency, so tests substitute a synthetic graph through
+`app.dependency_overrides` and exercise the whole surface with no cached Delhi
+extract and no network. It is loaded lazily, because a cold `load_delhi_graph()`
+is ~20 s.
+
+**The cost matrix is cached with the scenario.** Building it runs an all-pairs
+Dijkstra — ~160 ms for a 21-stop instance — and every optimizer call needs it.
+Caching it also guarantees that two calls against one `scenario_id` are
+optimizing *identical* costs, which is what makes `/compare` meaningful.
+
+**Scenarios are in memory.** Restarting the process drops them. Persistence is
+out of scope for this phase; the store's interface is small enough that swapping
+in a database would not touch the routes.
+
+**Coordinates are snapped by a linear scan.** `nearest_node` is ~2000 distance
+comparisons on the Delhi graph — microseconds — and works on any graph carrying
+coordinates, including synthetic test graphs, which declare no CRS for a spatial
+index to interpret.
 
 ## Road graph
 
@@ -90,7 +192,7 @@ print(evaluate(optimal, scenario, costs).summary())
 | `decoding`             | permutation/random-keys → routes, via Prins' optimal capacity split — shared by every metaheuristic |
 | `brute_force`          | Exact (Held-Karp + partition search), ground truth for small instances |
 | `savings`              | Clarke-Wright Savings — the constructive baseline           |
-| `qpso`                 | Quantum-behaved PSO — the headline solver                   |
+| `qpso`                 | Quantum-behaved PSO — the research contribution              |
 | `classical_pso`        | Velocity-driven PSO — the control that isolates the quantum update |
 | `genetic_algorithm`    | GA — order crossover + swap mutation                        |
 | `aco`                  | Ant Colony Optimization — pheromone construction           |
@@ -123,7 +225,7 @@ asymmetry, and the classical savings formula is a symmetric one.
 
 ## QPSO
 
-`qgati.optimizer.qpso` is the headline solver: the genuine quantum-behaved
+`qgati.optimizer.qpso` is the project's research contribution: the genuine quantum-behaved
 particle swarm (Sun et al., 2004), not classical PSO renamed. Particles are
 sampled from a quantum potential well rather than driven by velocity.
 
@@ -183,7 +285,7 @@ identical instances — see [Benchmarks](#benchmarks).
 
 | Solver | Operators / update | Role |
 | --- | --- | --- |
-| `run_qpso` | quantum well sampling, `beta` 1.0 → 0.5 | the headline solver |
+| `run_qpso` | quantum well sampling, `beta` 1.0 → 0.5 | the research contribution |
 | `run_classical_pso` | `v = w·v + c₁r₁(pbest−x) + c₂r₂(gbest−x)`, `w` 0.9 → 0.4 | **the control** — isolates what the quantum update adds |
 | `run_genetic_algorithm` | k-way tournament, order crossover (OX1), swap mutation, 1 elite | evolutionary baseline |
 | `run_aco` | `tau^α · (1/cost)^β` roulette construction, evaporation 0.1 + reinforcement | pheromone baseline |
@@ -291,7 +393,7 @@ solvers. `best` / `mean` are travel cost; lower is better.
 **QPSO is not the strongest solver here.** ACO wins at every size, GA is second
 at n=8 and n=25, and QPSO is third — last but one — despite ACO costing about
 twice the wall time per iteration. This is worth stating plainly rather than
-burying: the project's headline solver does not currently justify its place on
+burying: the original headline solver does not currently justify its place on
 quality alone, and the equal-budget n=25 sweep below shows that giving QPSO a 30×
 larger budget does not change the ordering.
 
@@ -331,11 +433,12 @@ across two independent runs — and `ms min` stays valid, which is why it exists
 
 ```bash
 cd backend
-uv run pytest                  # 26 fast tests, no network
+uv run pytest                  # 175 fast tests, no network
 ```
 
-The suite runs against a synthetic random graph, so it is fast and offline. One
-test exercises the real Delhi graph and is skipped by default; opt in with:
+The suite runs against a synthetic random graph, so it is fast and offline.
+Three tests exercise the real Delhi graph and are skipped by default; opt in
+with:
 
 ```bash
 QGATI_RUN_SLOW=1 uv run pytest         # bash
@@ -355,7 +458,7 @@ to `load_delhi_graph()` creates.
 | `qgati.traffic`     | Rule-based traffic simulator + ML travel-time predictor      |
 | `qgati.reopt`       | Adaptive partial re-optimization                             |
 | `qgati.explain`     | Decision traces / explainability                             |
-| `qgati.api`         | FastAPI application                                          |
+| `qgati.api`         | FastAPI application — schemas, in-memory store, routes       |
 
 `data/` holds cached graphs and scenario configs. `data/cache/` is gitignored: it
 holds the fetched `.graphml`, plus `data/cache/osm_http/` for OSMnx's raw

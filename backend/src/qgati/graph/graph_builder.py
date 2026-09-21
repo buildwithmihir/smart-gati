@@ -35,6 +35,8 @@ __all__ = [
     "is_delhi_graph_cached",
     "largest_strongly_connected_subgraph",
     "load_delhi_graph",
+    "nearest_node",
+    "node_coordinates",
 ]
 
 # Connaught Place — roughly the geographic centre of Delhi. We deliberately
@@ -186,6 +188,66 @@ def largest_strongly_connected_subgraph(graph: nx.Graph) -> nx.Graph:
     """
     component = max(nx.strongly_connected_components(graph), key=len)
     return graph.subgraph(component).copy()
+
+
+def node_coordinates(data: dict) -> tuple[float, float] | None:
+    """Read ``(lon, lat)`` out of a node's attribute dict, or ``None``.
+
+    Two layouts are understood: OSMnx's ``x``/``y``, and the ``pos`` ``(x, y)``
+    tuple that :func:`build_synthetic_graph` writes for tests.
+    """
+    if "x" in data and "y" in data:  # OSMnx
+        return float(data["x"]), float(data["y"])
+    if "pos" in data:  # synthetic: pos is (x, y)
+        x, y = data["pos"]
+        return float(x), float(y)
+    return None
+
+
+def nearest_node(graph: nx.Graph, lat: float, lon: float) -> object:
+    """Snapshot the road-graph node nearest a coordinate.
+
+    This is how a client that speaks in coordinates — a map pin, a delivery
+    address — enters the graph-routing world, which speaks in node ids.
+
+    Deliberately a plain linear scan rather than a spatial index. Scenarios have
+    a handful of stops and the Delhi graph a couple of thousand nodes, so this
+    costs microseconds, and it works on *any* graph carrying coordinates —
+    including the synthetic test graphs, which declare no CRS for a spatial index
+    to interpret. Distances are compared in an equirectangular approximation
+    (longitude scaled by ``cos(lat)``), which is more than accurate enough to
+    choose between nodes metres apart.
+
+    Note the snapped node is not guaranteed to be in the largest strongly-
+    connected subgraph: a coordinate can land closest to a one-way stub. Scenario
+    builders should prefer :func:`~qgati.optimizer.scenarios.servable_nodes`.
+
+    Raises
+    ------
+    ValueError
+        If the graph has no nodes carrying coordinates.
+    """
+    if graph.number_of_nodes() == 0:
+        raise ValueError("cannot snap a coordinate onto an empty graph")
+
+    longitude_scale = math.cos(math.radians(lat))
+    best_node: object | None = None
+    best_distance = math.inf
+
+    for node, data in graph.nodes(data=True):
+        coordinates = node_coordinates(data)
+        if coordinates is None:
+            continue
+        node_lon, node_lat = coordinates
+        delta_lon = (node_lon - lon) * longitude_scale
+        delta_lat = node_lat - lat
+        distance = delta_lon * delta_lon + delta_lat * delta_lat
+        if distance < best_distance:
+            best_distance, best_node = distance, node
+
+    if best_node is None:
+        raise ValueError("no node in this graph carries coordinates to snap onto")
+    return best_node
 
 
 # --------------------------------------------------------------------------- #
