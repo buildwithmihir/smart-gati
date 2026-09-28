@@ -4,7 +4,7 @@
  * Right panel: the Route Summary card.
  *
  * Every figure is read from the optimize response — nothing here is hardcoded,
- * including the solver name, which comes from `solver_name` ("ACO" while ACO
+ * including the solver name, which comes from `solver_name` ("QPSO" while QPSO
  * remains the backend's production default).
  *
  * The cost figure is travel **time in seconds**, not distance: the graph's

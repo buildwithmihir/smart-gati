@@ -181,7 +181,7 @@ export default function Dashboard() {
             <div className="qgati-fade-in pointer-events-none absolute top-3 left-1/2 z-40 -translate-x-1/2">
               <div className="flex items-center gap-2 rounded-full bg-ink px-3 py-1.5 text-xs text-white shadow-lg">
                 <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                Running ACO on the Delhi graph…
+                Running QPSO on the Delhi graph…
               </div>
             </div>
           ) : null}

@@ -166,7 +166,7 @@ export function createScenario(payload: Record<string, unknown>): Promise<Scenar
 
 /**
  * Solve a stored scenario. No solver name is sent, so the backend applies its
- * production default — ACO — which is what the UI then reports back.
+ * production default — QPSO — which is what the UI then reports back.
  */
 export function optimizeScenario(scenarioId: string): Promise<OptimizeResponse> {
   return request<OptimizeResponse>(`/optimize/${scenarioId}`, {

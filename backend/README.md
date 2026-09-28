@@ -572,8 +572,8 @@ to `load_delhi_graph()` creates.
 | `qgati.routing`     | Shortest paths — Dijkstra, A*                                |
 | `qgati.optimizer`   | VRP solvers — QPSO, GA, classical PSO, ACO, Savings, brute force |
 | `qgati.traffic`     | Rule-based traffic simulator, and the log it collects         |
-| `qgati.reopt`       | Adaptive partial re-optimization                             |
-| `qgati.explain`     | Decision traces / explainability                             |
+| `qgati.reopt`       | Stub — warehouse for partial re-optimization (later phase)             |
+| `qgati.explain`     | Stub — warehouse for decision traces / explainability (later phase)    |
 | `qgati.api`         | FastAPI application — schemas, in-memory store, routes       |
 
 `data/` holds cached graphs and scenario configs. `data/cache/` is gitignored: it
