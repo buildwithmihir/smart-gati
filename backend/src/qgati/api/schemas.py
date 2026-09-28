@@ -14,15 +14,20 @@ integer, so the API does not assume it.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 __all__ = [
     "CompareResponse",
+    "ConditionsIn",
+    "ConditionsOut",
     "DeliveryOut",
     "DepotIn",
     "DepotOut",
+    "EdgeIn",
+    "EdgeOut",
     "OptimizeRequest",
     "OptimizeResponse",
     "RouteOut",
@@ -32,6 +37,8 @@ __all__ = [
     "SolverResultOut",
     "StopIn",
     "StopOut",
+    "TrafficLogEntry",
+    "TrafficLogPage",
     "VehicleIn",
     "VehicleOut",
 ]
@@ -91,6 +98,50 @@ class VehicleIn(BaseModel):
     capacity: float = Field(gt=0)
 
 
+class EdgeIn(BaseModel):
+    """One directed road segment, named by its endpoints.
+
+    Direction matters: closing a one-way street is a realistic incident, so
+    ``{u: 1, v: 2}`` and ``{u: 2, v: 1}`` are different roads.
+    """
+
+    u: NodeId
+    v: NodeId
+
+
+class ConditionsIn(BaseModel):
+    """Simulated traffic conditions to price a scenario under.
+
+    Omit the whole block for the plain case: the system clock decides peak hour
+    and nothing manual is applied.
+
+    ``timestamp`` is *when* the scenario is priced. Leave it out for "now", or
+    set it to compare the same instance at 09:00 and at 14:00. A naive timestamp
+    is read as local time.
+    """
+
+    timestamp: datetime | None = Field(
+        default=None,
+        description="When to price; defaults to the system clock at creation.",
+    )
+    rain: bool = Field(default=False, description="Rain: every road +40%.")
+    accident_edges: list[EdgeIn] = Field(
+        default_factory=list,
+        description=(
+            "Roads carrying an accident, x3. Each must exist in the road graph. "
+            "Localised rather than network-wide: a uniform x3 would cost more "
+            "without changing any route."
+        ),
+    )
+    closed_edges: list[EdgeIn] = Field(
+        default_factory=list,
+        description=(
+            "Impassable roads. Each must exist in the road graph. A closure can "
+            "make a scenario infeasible, which is reported as 422."
+        ),
+    )
+
+
 class ScenarioCreateRequest(BaseModel):
     """Create a scenario either by generating one or by describing it exactly.
 
@@ -110,6 +161,10 @@ class ScenarioCreateRequest(BaseModel):
     depot: DepotIn | None = None
     deliveries: list[StopIn] | None = None
     vehicles: list[VehicleIn] | None = None
+
+    #: Traffic conditions to price the instance under. Fixed for the scenario's
+    #: lifetime once created — see :class:`ConditionsOut`.
+    conditions: ConditionsIn | None = None
 
     @model_validator(mode="after")
     def _require_the_right_fields(self) -> ScenarioCreateRequest:
@@ -168,6 +223,13 @@ class ScenarioResponse(BaseModel):
     n_vehicles: int
     #: True when the instance is small enough for brute force to solve exactly.
     exactly_solvable: bool
+    #: The traffic conditions this scenario's costs were built under.
+    conditions: ConditionsOut
+    #: Rows written to the traffic log when this scenario was priced. Reported so
+    #: it is visible that collection happens as a side effect of normal use, with
+    #: no separate step. Zero means the log write failed — the request still
+    #: succeeded, and the server log says why.
+    traffic_rows_logged: int
 
 
 class ScenarioSummary(BaseModel):
@@ -179,6 +241,34 @@ class ScenarioSummary(BaseModel):
     total_demand: float
 
 
+class EdgeOut(BaseModel):
+    u: NodeId
+    v: NodeId
+
+
+class ConditionsOut(BaseModel):
+    """The conditions a stored scenario is priced under, with what they imply.
+
+    Echoed on the scenario rather than recomputed per request, because these are
+    fixed at creation: the same ``scenario_id`` always optimizes the same costs,
+    which is what makes a solver comparison on it meaningful. Build two scenarios
+    from one seed with different ``timestamp`` values to compare peak and
+    off-peak.
+
+    ``peak_hour``, ``weather`` and ``traffic_condition`` are derived from
+    ``timestamp`` and ``rain`` — they are reported so a client does not have to
+    re-implement the peak windows to know which regime it is looking at.
+    """
+
+    timestamp: datetime
+    peak_hour: bool
+    weather: str
+    traffic_condition: str
+    rain: bool
+    accident_edges: list[EdgeOut]
+    closed_edges: list[EdgeOut]
+
+
 # --------------------------------------------------------------------------- #
 # Optimize
 # --------------------------------------------------------------------------- #
@@ -188,7 +278,7 @@ class OptimizeRequest(BaseModel):
     The scenario is named by the URL, not the body — ``POST /optimize/{scenario_id}``
     — so the body carries only *how* to solve, never *what* to solve.
 
-    ``solver`` defaults to the registry's production default (ACO). The search
+    ``solver`` defaults to the registry's production default (QPSO). The search
     parameters default to the same values the Phase 4 benchmark used, so an
     API result is comparable with a benchmark result.
     """
@@ -288,3 +378,39 @@ class CompareResponse(BaseModel):
     optimal: float | None = None
     best_known: float | None = None
     results: list[SolverResultOut]
+
+
+# --------------------------------------------------------------------------- #
+# Traffic log
+# --------------------------------------------------------------------------- #
+class TrafficLogEntry(BaseModel):
+    """One logged road-condition observation.
+
+    ``travel_time`` is ``None`` for a closed road — it is impassable, so there is
+    no travel time to report, and ``incident_type`` says why.
+
+    This table is being collected for a future travel-time model. Nothing reads
+    it back except this endpoint; there is no prediction here.
+    """
+
+    road_id: str = Field(description='The edge, as "u->v"')
+    road_u: NodeId
+    road_v: NodeId
+    timestamp: str
+    day_of_week: str
+    time_of_day: str
+    weather_condition: str
+    traffic_condition: str
+    incident_type: str | None = None
+    travel_time: float | None = None
+
+
+class TrafficLogPage(BaseModel):
+    """One page of the traffic log, newest first."""
+
+    items: list[TrafficLogEntry]
+    #: Rows matching the filters across the whole table, not just this page.
+    total: int
+    limit: int
+    offset: int
+    has_more: bool

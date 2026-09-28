@@ -46,7 +46,7 @@ from typing import TYPE_CHECKING, Hashable, Iterable, Sequence
 import networkx as nx
 
 from qgati.graph.graph_builder import node_coordinates
-from qgati.routing.dijkstra import dijkstra_all_pairs
+from qgati.routing.dijkstra import WeightFn, dijkstra_all_pairs
 
 if TYPE_CHECKING:  # avoids an optimizer <-> graph import cycle at runtime
     from qgati.optimizer.models import Scenario
@@ -293,7 +293,7 @@ def _edges_with_data(graph: nx.Graph) -> Iterable[tuple[Node, Node, dict]]:
 def route_polyline(
     graph: nx.Graph,
     nodes: Sequence[Node],
-    weight: str = "weight",
+    weight: str | WeightFn = "weight",
 ) -> list[list[float]]:
     """The road polyline for one route, as ``[[lon, lat], ...]``.
 
@@ -306,6 +306,11 @@ def route_polyline(
     length in travel time equals the leg cost the optimizer minimised. Joint
     stops are de-duplicated, so the result reads as one continuous line rather
     than a chain of overlapping legs.
+
+    ``weight`` must be whatever the cost matrix was built with. Pass a callable
+    (:func:`~qgati.traffic.simulator.traffic_weight_function`) for a matrix
+    priced under traffic conditions — tracing such a route on the static weights
+    would draw a road the optimizer never chose.
 
     Returns an empty list when the route has no drawable nodes.
     """

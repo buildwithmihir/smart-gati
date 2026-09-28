@@ -2,12 +2,18 @@
 
 A **multi-algorithm VRP framework** — six solvers behind one contract, benchmarked
 against each other on identical cost matrices — plus the FastAPI service around
-it. **ACO is the production default**, chosen on Phase 4's measured results
-rather than on the project's original premise: it was empirically dominant at
-every tested scale (best cost and best mean at n=15 and n=25, exact optimum 5/5
-at n=8, and nearly budget-insensitive). QPSO remains the research contribution
-and the reason the harness exists — it beats classical PSO at equal budget, which
-is the quantum-update claim worth testing. See
+it. **QPSO is the production default.** The problem statement (SIH PS 26137) names
+quantum-inspired search as the focus of this work — benchmarked against
+conventional metaheuristics and exact methods — so QPSO is the solver the API
+serves, and the other five exist to measure it against: four conventional
+metaheuristics (Savings, GA, classical PSO, ACO) and brute force as exact ground
+truth.
+
+The benchmark is reported in full, including where QPSO loses: ACO reaches lower
+raw cost at n=15 and n=25. What the results do support is the comparison QPSO was
+chosen for — at equal budget it beats classical PSO, which shares its
+representation and differs *only* in the update rule, so the gap is attributable
+to the quantum sampling itself. See
 [What the benchmark actually shows](#what-the-benchmark-actually-shows).
 
 Managed with [uv](https://docs.astral.sh/uv/).
@@ -42,18 +48,19 @@ Interactive docs are at http://127.0.0.1:8000/docs.
 | `GET` | `/health` | Liveness probe |
 | `GET` | `/solvers` | Every registered solver, and which is the production default |
 | `GET` | `/graph/servable` | How many mutually-reachable nodes scenarios draw from |
-| `POST` | `/scenarios` | Create a scenario — generated at random, or described explicitly |
+| `POST` | `/scenarios` | Create a scenario — generated at random, or described explicitly, optionally under simulated traffic conditions |
 | `GET` | `/scenarios` | List stored scenarios |
 | `GET` | `/scenarios/{scenario_id}` | Fetch one |
 | `GET` | `/graph/delhi` | The road network as GeoJSON, optionally scoped to a scenario or a bbox |
 | `POST` | `/optimize/{scenario_id}` | Run one solver on a stored scenario |
 | `GET` | `/optimize/{scenario_id}/compare` | Run every solver on the same cost matrix |
+| `GET` | `/traffic/log` | Inspect the collected road-condition log, paginated |
 
-**`POST /optimize/{scenario_id}` defaults to ACO**, the production solver. Note
+**`POST /optimize/{scenario_id}` defaults to QPSO**, the production solver. Note
 that the scenario is named by the **URL**, never the body: the body carries only
 *how* to solve, so the two kinds of input cannot drift into one payload. `GET
-/optimize/{id}/compare` runs all six — that is where QPSO's comparative role
-lives, next to the production default on identical costs.
+/optimize/{id}/compare` runs all six — that is where QPSO's headline result sits
+next to the conventional solvers it is benchmarked against, on identical costs.
 
 ### A worked example
 
@@ -102,8 +109,8 @@ QPSO                      1502.3    149     0.65
 
 Read that as one instance, not a ranking: at `n=10` three of the six solvers land
 exactly on the optimum, so the instance barely separates them. The ordering that
-justifies ACO as the default comes from the multi-instance benchmark below, not
-from a single row of this table.
+matters comes from the multi-instance benchmark below, not from a single row of
+this table.
 
 ### API design notes
 
@@ -390,22 +397,42 @@ solvers. `best` / `mean` are travel cost; lower is better.
 
 ### What the benchmark actually shows
 
-**QPSO is not the strongest solver here.** ACO wins at every size, GA is second
-at n=8 and n=25, and QPSO is third — last but one — despite ACO costing about
-twice the wall time per iteration. This is worth stating plainly rather than
-burying: the original headline solver does not currently justify its place on
-quality alone, and the equal-budget n=25 sweep below shows that giving QPSO a 30×
-larger budget does not change the ordering.
+QPSO is the production default because the problem statement names it as this
+project's focus — quantum-inspired search, benchmarked against conventional
+metaheuristics and exact methods. That is a requirement, and it is why the default
+is QPSO rather than whichever solver happened to score lowest. The benchmark's job
+is to report honestly how the required algorithm performs, and that includes where
+it does not win.
 
-**What *is* supported is the narrower claim.** At equal budget QPSO beats
-classical PSO — by 5.9% at n=25 with 3,000 iterations, and on n=8 it hits the
-exact optimum in 3/5 runs against classical PSO's 1/5. Since the two differ
-*only* in the update rule, that difference is attributable to the quantum
-sampling. The pattern behind it is consistent: quantum sampling explores more
-broadly, so it converges slowly early and better asymptotically. At n=25 with
-only 100 iterations there is not enough budget to exploit that, and QPSO is
-*behind* classical PSO (21,386 against 19,162) — the quantum update is a
-long-budget technique.
+**On raw cost, ACO is the strongest solver here, and by a wide margin at n=25.**
+Its mean of 16,343.2 against QPSO's 21,386.1 is a 23.6% gap, and it holds the best
+mean at every size (tied with GA at n=8), despite costing about twice the wall time
+per iteration. GA is second at n=25. QPSO is second at n=15 and last of the four
+metaheuristics at n=25 under the 100-iteration budget. Stated plainly rather than
+buried: on final cost alone, the required algorithm is not the best one in the
+table.
+
+Two measured results qualify that, and neither is an argument from intent.
+
+**QPSO beats classical PSO — the controlled comparison.** The two share one
+representation and one decoder and differ *only* in the update rule, quantum
+sampling against the classical velocity update, so a gap between them is
+attributable to the quantum sampling and not to encoding or budget. At equal budget
+QPSO wins: at n=8 it reaches the exact optimum in 3/5 runs against classical PSO's
+1/5, and at n=25 with 3,000 iterations it is 5.9% better (17,359.8 against
+18,446.3). This is the problem statement's own claim about quantum-inspired
+sampling, and it is the comparison that actually tests it.
+
+**QPSO is a long-budget technique, so the 100-iteration tables understate it.** The
+same sweep shows QPSO improving 19% from 100 to 3,000 iterations — the most
+budget-sensitive solver in the set — where ACO moves 0.4% over the same 30×. At the
+100-iteration default there is not enough budget for the quantum update to pay off,
+and QPSO sits *behind* classical PSO (21,386 against 19,162); by 3,000 iterations it
+is clearly ahead. The mechanism fits: broad quantum sampling explores widely,
+converging more slowly early and better asymptotically. The same pattern shows in
+miniature at n=15, where QPSO produced the best single run of any solver (9,728.4
+against ACO's 9,768.7) even though ACO's mean there is better (9,906.9 against
+10,365.9).
 
 **ACO is nearly budget-insensitive**, which is the more interesting result of the
 two: 16,343 → 16,283 mean over 100 → 3,000 iterations, a 0.4% gain for 30× the
@@ -428,6 +455,95 @@ sweep: the run that produced it straddled a laptop suspend, so the `ms mean` of
 one cell (`ACO @ 300`) is inflated by ~6.7 hours of wall clock. Quality figures
 are unaffected — they are deterministic per seed and reproduced bit-identically
 across two independent runs — and `ms min` stays valid, which is why it exists.
+
+## Traffic simulation
+
+`qgati.traffic` prices the road network under simulated conditions *before* the
+optimizer runs, so a route computed at 9am is not the route computed at 3pm.
+
+**This is a simulation for demonstrating dynamic routing, not real-world traffic
+data.** The factors below are plausible round numbers, not calibrated against
+measured Delhi traffic.
+
+| Condition | Factor |
+| --- | --- |
+| Peak hour, 08:00–10:00 and 17:00–20:00 | ×1.70 on through roads, ×1.21 on side streets |
+| Rain | ×1.40, every road |
+| Accident | ×3.00, on the named roads only |
+| Road closure | impassable |
+| Combinations | multiply — peak rain on an accident road is 7.14× |
+
+Conditions are fixed when a scenario is created (`POST /scenarios` takes an
+optional `conditions` block) and recorded with it. The same `scenario_id` always
+optimizes the same costs, which is what keeps a solver comparison on it
+meaningful; create two scenarios from one seed with different timestamps to
+compare peak against off-peak.
+
+### A flat multiplier cannot reroute anything
+
+This is the finding that shaped the model. A tour is a sum of legs. Scale every
+edge by 1.7 and every tour scales by 1.7, so **the cheapest tour is still the
+cheapest tour** — a uniform peak factor returns identical routes at a higher
+price. A flat ×1.7 would have made the dynamic routing this layer exists to
+demonstrate impossible to show.
+
+Peak congestion is therefore weighted by road class, using the OSM `highway` tag
+already on every edge:
+
+```
+peak_multiplier(edge) = 1 + (1.7 - 1) * sensitivity(edge)
+
+  motorway / trunk / primary / secondary / tertiary (+ _link)   sensitivity 1.00 -> x1.70
+  residential / living_street / service / unclassified, unknown  sensitivity 0.30 -> x1.21
+```
+
+The split is load-bearing on this extract rather than cosmetic. Through roads run
+at 48.6 kph against 35.0 kph on residential streets, so off-peak an arterial is
+**1.39× faster**; under peak their effective speeds converge to 28.6 against
+28.9 kph, and the arterial's advantage disappears. Routing moves onto side
+streets. `PEAK_FACTOR` is the through-road figure, so the headline ×1.7 is
+exactly what an arterial takes.
+
+**Rain is applied flat at ×1.4, and by the same argument it reroutes nothing on
+its own** — it raises every route by exactly 40%. That is a property of the
+model, not a defect: rain changes the *price* of a route, and only bites on
+*routing* in combination with something road-dependent, like peak hour or an
+accident. `test_rain_alone_scales_every_tour_equally` pins it.
+
+Road closures are never implemented by deleting edges. The Delhi graph is a
+cached, shared, read-only object, so a deletion would leak into every later
+request; instead a closed edge is given infinite weight, which Dijkstra discards
+for the same reason it discards any unaffordable edge. The graph is only read.
+
+### Traffic log
+
+Every scenario creation writes a row per affected road to
+`data/traffic_log.db` (SQLite), as a side effect of ordinary use — there is no
+separate step to run. `GET /traffic/log` reads it back, paginated.
+
+| Column | |
+| --- | --- |
+| `road_id`, `road_u`, `road_v` | the directed edge, as `"u->v"` and as its endpoints |
+| `timestamp`, `day_of_week`, `time_of_day` | when the condition was applied |
+| `weather_condition`, `traffic_condition` | `clear`/`rain`, `peak`/`off_peak` |
+| `incident_type` | `accident`, `road_closure`, or `NULL` |
+| `travel_time` | seconds under these conditions; `NULL` for a closed road |
+
+Two kinds of road are logged, and both are needed. **Traversed roads** are every
+edge the scenario's cheapest paths run along, so each row is a road a real route
+weighed rather than an arbitrary slice of the graph; pricing the same instance
+off-peak and at peak logs the same roads under different conditions, which is
+what makes the table *paired*. **Incident roads** are logged whether or not any
+route used them — a closed edge has infinite weight, so no cheapest path can ever
+include it, and without this half the `road_closure` value would never once
+appear.
+
+A closed road logs `travel_time` as `NULL`: it is impassable, so there is no
+travel time to record, and `incident_type` carries the reason.
+
+**No prediction is built on this data.** There is no model, no training pipeline
+and no "predicted travel time" field — the log exists so that a later phase has a
+`(road, time, weather, incident) -> travel_time` history to learn from.
 
 ## Tests
 
@@ -455,11 +571,12 @@ to `load_delhi_graph()` creates.
 | `qgati.graph`       | Road graph construction and caching (OSMnx/NetworkX)         |
 | `qgati.routing`     | Shortest paths — Dijkstra, A*                                |
 | `qgati.optimizer`   | VRP solvers — QPSO, GA, classical PSO, ACO, Savings, brute force |
-| `qgati.traffic`     | Rule-based traffic simulator + ML travel-time predictor      |
+| `qgati.traffic`     | Rule-based traffic simulator, and the log it collects         |
 | `qgati.reopt`       | Adaptive partial re-optimization                             |
 | `qgati.explain`     | Decision traces / explainability                             |
 | `qgati.api`         | FastAPI application — schemas, in-memory store, routes       |
 
 `data/` holds cached graphs and scenario configs. `data/cache/` is gitignored: it
 holds the fetched `.graphml`, plus `data/cache/osm_http/` for OSMnx's raw
-Overpass responses.
+Overpass responses. `data/traffic_log.db` is gitignored too — it is collected at
+runtime and grows with use.

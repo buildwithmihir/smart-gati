@@ -17,6 +17,16 @@ Persistence is out of scope for this phase. Restarting the process drops every
 scenario; a real deployment would put this behind a database, and the store's
 interface is small enough that swapping the implementation would not touch the
 routes.
+
+Why the traffic state is cached alongside
+-----------------------------------------
+A scenario's cost matrix is priced under a fixed set of simulated traffic
+conditions, decided when it is created and never revisited. Storing the state
+with the matrix is what keeps the two consistent: the same ``scenario_id``
+answers with the same costs, and it can also say *which* conditions those costs
+describe. Re-pricing a stored scenario on every request would mean the same id
+returned different costs at 09:00 and at 14:00, and a solver comparison on it
+would be comparing solvers across two different problems.
 """
 
 from __future__ import annotations
@@ -28,6 +38,7 @@ from datetime import datetime, timezone
 
 from qgati.graph.cost_matrix import CostMatrix
 from qgati.optimizer.models import Scenario
+from qgati.traffic.simulator import TrafficState
 
 __all__ = ["ScenarioNotFound", "ScenarioStore", "StoredScenario"]
 
@@ -38,12 +49,14 @@ class ScenarioNotFound(KeyError):
 
 @dataclass(frozen=True)
 class StoredScenario:
-    """A scenario, the id it is known by, and its precomputed costs."""
+    """A scenario, the id it is known by, its costs, and what priced them."""
 
     scenario_id: str
     scenario: Scenario
     cost_matrix: CostMatrix
     created_at: str
+    traffic_state: TrafficState
+    traffic_rows_logged: int = 0
 
 
 class ScenarioStore:
@@ -57,13 +70,21 @@ class ScenarioStore:
         self._items: dict[str, StoredScenario] = {}
         self._lock = threading.Lock()
 
-    def add(self, scenario: Scenario, cost_matrix: CostMatrix) -> StoredScenario:
-        """Store a scenario and its costs, returning it with a fresh id."""
+    def add(
+        self,
+        scenario: Scenario,
+        cost_matrix: CostMatrix,
+        traffic_state: TrafficState,
+        traffic_rows_logged: int = 0,
+    ) -> StoredScenario:
+        """Store a scenario, its costs and the conditions that priced them."""
         record = StoredScenario(
             scenario_id=uuid.uuid4().hex,
             scenario=scenario,
             cost_matrix=cost_matrix,
             created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            traffic_state=traffic_state,
+            traffic_rows_logged=traffic_rows_logged,
         )
         with self._lock:
             self._items[record.scenario_id] = record

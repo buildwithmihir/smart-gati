@@ -33,6 +33,11 @@ next-env.d.ts
 backend/data/cache/*
 !backend/data/cache/.gitkeep
 
+# --- Traffic log (collected at runtime, grows with every scenario created).
+# The trailing wildcard also covers SQLite's -wal and -shm sidecars, which WAL
+# mode creates alongside the database. ---
+backend/data/traffic_log.db*
+
 # --- Benchmark progress logs (transient per-event diagnostics, rewritten each
 # run; the results .json/.csv beside them are kept as evidence) ---
 backend/benchmarks/results/*_progress.jsonl

@@ -1,0 +1,334 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* Was `var(--font-sans)`, which is the variable being defined — a cycle that
+     resolves to nothing, so every `font-sans` in the app was silently falling
+     back to the browser default. The face is loaded in `app/layout.tsx`. */
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ---------------------------------------------------------------------------
+   Q-Gati design tokens
+   ---------------------------------------------------------------------------
+   The block above is shadcn's scaffolding; this one is ours. Every value here
+   earns its place by having been repeated as a literal in two or more files,
+   where drift between the copies stays invisible until something looks wrong.
+
+   The type scale is Tailwind's, with exactly one addition: the scale bottoms
+   out at `text-xs` (12px), but the uppercase micro-labels in the furniture —
+   stat bar, card footers, legend — are chrome, not content. At 12px they
+   compete with the data they annotate, so `text-2xs` supplies the one step
+   below. Nothing else is invented.
+
+   `static` is load-bearing. Tailwind otherwise drops theme variables that no
+   utility happens to reference, and the two colour tokens below are read back
+   out at runtime through `getComputedStyle` to paint the MapLibre canvas —
+   which is a use Tailwind cannot see. Without `static` they would be pruned
+   and the map would silently fall back to hardcoded hexes.
+   --------------------------------------------------------------------------- */
+@theme static {
+  /* The brand near-black: header, solver pill, depot marker. */
+  --color-ink: #0b1220;
+
+  /* Surfaces, from the map's placeholder wash up to the page. `basemap` is
+     Positron's own background rather than a taste: the marker rings and route
+     casings are drawn against it, so it has to track the basemap provider. */
+  --color-canvas-sunken: #f4f4f1;
+  --color-canvas: #f9f9f7;
+  --color-basemap: #fafaf8;
+
+  /* The cached road network. Deliberately recessive — it may never compete
+     with the routes drawn over it. */
+  --color-road: #b5b3ac;
+
+  /* Status inks, both clear of 4.5:1 on --color-canvas. */
+  --color-ok: #006300;
+  --color-danger: #d03b3b;
+
+  /* The one step below Tailwind's `text-xs`. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  /* Both side panels share a width, so the map sits between two equals rather
+     than between a 340px panel and a 336px one. */
+  --spacing-panel: 21rem;
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Map markers
+   ---------------------------------------------------------------------------
+   A marker is two nested elements, and the split is load-bearing rather than
+   stylistic. MapLibre positions the element it is handed by writing `transform`
+   onto it, so an entrance animation that scales the wrapper would be fighting
+   MapLibre for the same property and the marker would fly off the map. The
+   wrapper therefore owns opacity and geometry only; the dot inside owns
+   everything visual, including the entrance, which scales.
+
+   The wrapper is exactly the dot's size because `anchor: "center"` resolves to
+   `translate(-50%, -50%)` against the element's own box — a wrapper with no
+   size would anchor the marker half a dot off its coordinate.
+
+   The surface-coloured ring (the first box-shadow spread) is what keeps two
+   overlapping markers readable as two markers.
+
+   The numeral inside is load-bearing rather than decorative: the aqua vehicle
+   measures 2.69:1 against the basemap, below the 3:1 bar, so colour alone is
+   not allowed to carry identity. The number is the required relief.
+   --------------------------------------------------------------------------- */
+.qgati-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+
+/* Doubled up on MapLibre's own class because that stylesheet already declares
+   `transition: opacity .2s` on `.maplibregl-marker`, and which of two equal
+   single-class selectors wins depends on stylesheet order — which here depends
+   on the bundler. Two classes settle it regardless. */
+.maplibregl-marker.qgati-marker,
+.maplibregl-marker.qgati-depot-marker {
+  transition: opacity var(--qgati-redraw-ms, 420ms) ease;
+}
+
+/* Set on the way out; the element is removed once the transition has run. */
+.qgati-marker[data-retiring="true"],
+.qgati-depot-marker[data-retiring="true"] {
+  opacity: 0;
+}
+
+.qgati-marker-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background-color: var(--marker-color);
+  color: #fff;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-shadow:
+    0 0 0 2px var(--color-basemap),
+    0 1px 3px rgb(11 11 11 / 0.35);
+  animation: qgati-marker-in var(--qgati-redraw-ms, 420ms) ease-out both;
+  /* Set per marker so a re-solve deals the stops in rather than snapping the
+     whole set at once. */
+  animation-delay: var(--marker-delay, 0ms);
+}
+
+/* The depot is not a numbered stop, so it reads quieter than one. */
+.qgati-depot-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 9999px;
+  background-color: var(--color-ink);
+  box-shadow:
+    0 0 0 2px var(--color-basemap),
+    0 0 0 4px rgb(11 11 11 / 0.16);
+  animation: qgati-marker-in var(--qgati-redraw-ms, 420ms) ease-out both;
+}
+
+@keyframes qgati-marker-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Hero backdrop
+   ---------------------------------------------------------------------------
+   The ambient loop behind the empty state. `object-fit: cover` means the video
+   crops rather than letterboxes, so it fills any viewport without distortion;
+   the scrim above it is what makes the copy and the button readable over
+   whatever frame happens to be on screen, which is why it is a separate layer
+   rather than a video filter.
+   --------------------------------------------------------------------------- */
+.qgati-hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---------------------------------------------------------------------------
+   Arrivals
+   ---------------------------------------------------------------------------
+   A transition cannot fire on an element that is appearing — there is no
+   previous value to move from — so anything that fades *in* uses a keyframe
+   instead. Anything that also has to fade out hands the property back to a
+   transition by dropping this class, since a forwards-filling animation would
+   otherwise outrank the transition's target and pin the element visible.
+   --------------------------------------------------------------------------- */
+.qgati-fade-in {
+  animation: qgati-fade-in 320ms ease-out both;
+}
+
+@keyframes qgati-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion
+   ---------------------------------------------------------------------------
+   Every animation on this page is decoration: nothing is communicated by
+   movement that is not also communicated by the frame it settles on. So when
+   the OS asks for less, they all stop rather than merely slowing.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .qgati-marker-dot,
+  .qgati-depot-dot,
+  .qgati-fade-in {
+    animation: none;
+  }
+
+  .maplibregl-marker.qgati-marker,
+  .maplibregl-marker.qgati-depot-marker {
+    transition: none;
+  }
+
+  /* Not merely paused: a looping video behind a scrim is exactly the kind of
+     perpetual motion the setting exists to suppress. */
+  .qgati-hero-video {
+    display: none;
+  }
+}

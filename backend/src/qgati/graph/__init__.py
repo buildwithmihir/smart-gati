@@ -9,7 +9,12 @@
 nothing touches the road graph again.
 """
 
-from qgati.graph.cost_matrix import CostMatrix, build_cost_matrix
+from qgati.graph.cost_matrix import (
+    CostMatrix,
+    CostMatrixBuild,
+    build_cost_matrix,
+    build_cost_matrix_detailed,
+)
 from qgati.graph.geometry import (
     DEFAULT_PADDING_M,
     bbox_around_nodes,
@@ -36,8 +41,10 @@ __all__ = [
     "DEFAULT_PADDING_M",
     "DELHI_CENTER",
     "CostMatrix",
+    "CostMatrixBuild",
     "bbox_around_nodes",
     "build_cost_matrix",
+    "build_cost_matrix_detailed",
     "build_synthetic_graph",
     "delhi_graph_cache_path",
     "graph_to_geojson",

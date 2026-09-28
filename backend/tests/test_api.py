@@ -11,7 +11,7 @@ network, and no ~20 s cold load. That override point is the reason ``get_graph``
 is a dependency rather than a module global.
 
 What is asserted about *solvers* here is deliberately thin — that the default is
-ACO, that a named solver is honoured, that errors map to the right status codes.
+QPSO, that a named solver is honoured, that errors map to the right status codes.
 Search quality belongs to the optimizer's own tests; these are about the HTTP
 contract.
 """
@@ -21,10 +21,11 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from qgati.api.main import create_app, get_graph, get_store
+from qgati.api.main import create_app, get_graph, get_log_store, get_store
 from qgati.api.store import ScenarioStore
 from qgati.graph import build_synthetic_graph
 from qgati.optimizer import servable_nodes
+from qgati.traffic import TrafficLogStore
 
 #: Big enough that its largest strongly-connected subgraph can host the
 #: instances these tests generate.
@@ -60,17 +61,21 @@ def graph():
 
 @pytest.fixture
 def client(graph):
-    """A fresh app and an empty store per test, so tests cannot leak state.
+    """A fresh app and empty stores per test, so tests cannot leak state.
 
     The store override must be a *callable returning one instance*, not the class
     itself: ``get_store`` is a dependency, so passing ``ScenarioStore`` would have
     FastAPI construct a new empty store for every request and nothing would ever
-    be found by id.
+    be found by id. The traffic log is overridden for the same reason plus one
+    more — in-memory, so creating a scenario in a test never appends to the real
+    ``backend/data/traffic_log.db``.
     """
     application = create_app()
     store = ScenarioStore()
+    log_store = TrafficLogStore(":memory:")
     application.dependency_overrides[get_graph] = lambda: graph
     application.dependency_overrides[get_store] = lambda: store
+    application.dependency_overrides[get_log_store] = lambda: log_store
     with TestClient(application) as test_client:
         yield test_client
     application.dependency_overrides.clear()
@@ -95,17 +100,18 @@ def test_health(client) -> None:
 
 
 def test_solvers_endpoint_lists_every_solver_and_the_default(client) -> None:
-    """The registry is the single source of truth, and ACO is the default.
+    """The registry is the single source of truth, and QPSO is the default.
 
-    The production-default assertion is the important one: it is the API-level
-    expression of the Phase 4 decision, so if it ever silently reverts to QPSO
-    this test fails.
+    The production-default assertion is the important one: QPSO is the problem
+    statement's focus algorithm (PS 26137), so the default is a project
+    requirement rather than a benchmark outcome — if it ever silently reverts to
+    ACO, this test fails.
     """
     response = client.get("/solvers")
     assert response.status_code == 200
     payload = response.json()
 
-    assert payload["default"] == "aco"
+    assert payload["default"] == "qpso"
     keys = [spec["key"] for spec in payload["solvers"]]
     assert keys == [
         "brute_force",
@@ -281,15 +287,15 @@ def test_list_and_fetch_scenarios(client) -> None:
 # --------------------------------------------------------------------------- #
 # Optimize
 # --------------------------------------------------------------------------- #
-def test_optimize_defaults_to_aco(client) -> None:
+def test_optimize_defaults_to_qpso(client) -> None:
     """The production default, asserted at the HTTP boundary."""
     scenario_id = make_scenario(client)["scenario_id"]
     response = client.post(f"/optimize/{scenario_id}", json={"seed": 0})
     assert response.status_code == 200, response.text
 
     body = response.json()
-    assert body["solver"] == "aco"
-    assert body["solver_name"] == "ACO"
+    assert body["solver"] == "qpso"
+    assert body["solver_name"] == "QPSO"
     assert body["travel_cost"] > 0
     assert body["cost"] >= body["travel_cost"]
     assert body["feasible"] is True
@@ -302,7 +308,7 @@ def test_optimize_with_no_body_at_all(client) -> None:
     scenario_id = make_scenario(client)["scenario_id"]
     response = client.post(f"/optimize/{scenario_id}")
     assert response.status_code == 200, response.text
-    assert response.json()["solver"] == "aco"
+    assert response.json()["solver"] == "qpso"
 
 
 def test_optimize_honours_a_named_solver(client) -> None:
@@ -704,3 +710,4 @@ def test_openapi_schema_is_generated(client) -> None:
     assert "/optimize/{scenario_id}/compare" in schema["paths"]
     assert "/scenarios" in schema["paths"]
     assert "/graph/delhi" in schema["paths"]
+    assert "/traffic/log" in schema["paths"]

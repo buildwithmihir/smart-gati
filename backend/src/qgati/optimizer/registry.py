@@ -9,13 +9,25 @@ decoder in :mod:`qgati.optimizer.decoding`, applied to the solver list itself.
 
 Production default
 ------------------
-:data:`DEFAULT_SOLVER_KEY` is **ACO**, not QPSO. Phase 4's equal-budget benchmark
-measured ACO dominant at every tested scale — best cost and best mean at n=15 and
-n=25, exact optimum 5/5 at n=8, and nearly budget-insensitive (0.4% between 100
-and 3,000 iterations). Selection followed the measurements rather than the
-project's original premise. QPSO stays first-class for comparison and
-explainability, which is where its research value lives: it beats classical PSO
-at equal budget, and those two differ only in the update rule.
+:data:`DEFAULT_SOLVER_KEY` is **QPSO**. The SIH problem statement (PS 26137) names
+quantum-inspired search as the focus of this work — quantum particle swarm
+optimization, benchmarked against conventional metaheuristics and exact methods —
+so it is the solver the API serves by default, and the other five here exist to
+benchmark it: four conventional metaheuristics (Savings, GA, classical PSO, ACO)
+and one exact ground truth (brute force).
+
+The benchmark is reported in full, including where QPSO is *not* strongest. ACO
+reaches lower raw cost at n=15 and n=25, and GA is second at n=8 and n=25; that is
+a real finding and the README states it plainly rather than burying it.
+
+What the benchmark supports is the comparison QPSO was chosen for. At equal budget
+QPSO beats classical PSO — 5.9% better at n=25 with 3,000 iterations, and 3/5 runs
+hitting the exact optimum at n=8 against classical PSO's 1/5. Those two share one
+representation and differ *only* in the update rule, so the gap is attributable to
+the quantum sampling itself rather than to encoding or budget. That is the closest
+controlled comparison available here, and it is the problem statement's own claim
+about quantum-inspired sampling, measured. See the backend README, "What the
+benchmark actually shows", for the numbers behind every sentence above.
 
 Uniform interface
 -----------------
@@ -207,8 +219,8 @@ SOLVERS: tuple[SolverSpec, ...] = (
 
 _BY_KEY: dict[str, SolverSpec] = {spec.key: spec for spec in SOLVERS}
 
-#: The production default. See the module docstring for why this is ACO.
-DEFAULT_SOLVER_KEY = "aco"
+#: The production default. See the module docstring for why this is QPSO.
+DEFAULT_SOLVER_KEY = "qpso"
 
 
 def solver_keys() -> tuple[str, ...]:

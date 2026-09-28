@@ -17,14 +17,17 @@ Endpoints
     Fetch one.
 ``POST /optimize/{scenario_id}``
     Run one solver on a stored scenario. Defaults to the registry's production
-    default, **ACO**.
+    default, **QPSO**.
 ``GET  /optimize/{scenario_id}/compare``
     Run every solver on the same cost matrix and return the comparison — the
-    Phase 4 benchmark, scoped to one scenario. This is where QPSO's research
-    value sits next to the production default.
+    Phase 4 benchmark, scoped to one scenario. This is where QPSO's headline
+    result sits next to the conventional solvers it was benchmarked against.
 ``GET  /graph/delhi``
     The road network as GeoJSON, so a map renders real street geometry rather
     than straight lines between stops. Scope it to a scenario to keep it small.
+``GET  /traffic/log``
+    Inspect the traffic-condition log — paginated. The log is being collected
+    for a future travel-time model; nothing here predicts anything.
 
 Three design points worth knowing
 ---------------------------------
@@ -32,7 +35,9 @@ Three design points worth knowing
 dependency, so tests can substitute a synthetic graph through
 ``app.dependency_overrides`` and exercise the whole API without the cached Delhi
 extract or the network. It is loaded lazily and cached, because
-``load_delhi_graph`` is ~20 s on a cold cache and ~0.2 s warm.
+``load_delhi_graph`` is ~20 s on a cold cache and ~0.2 s warm. The traffic log
+store is injected the same way, so a test run never writes to the developer's
+collected data.
 
 **Responses resolve indices back into ids.** Solvers return
 :class:`~qgati.optimizer.models.Solution`, which holds *positions* in the
@@ -42,6 +47,20 @@ back to delivery ids and road-graph nodes, and optionally to a road polyline.
 **The scenario is named by the URL, never the body.** ``POST /optimize/{scenario_id}``
 takes only solver parameters; anything that identifies *what* to solve is a path
 parameter. That keeps the two kinds of input from drifting into one payload.
+
+Simulated traffic conditions
+----------------------------
+``POST /scenarios`` accepts an optional ``conditions`` block — a timestamp, rain,
+accidents, closures. Those conditions price the scenario's cost matrix, are
+recorded with it, and are echoed back in the response. They are **fixed for the
+scenario's lifetime**: the same id always optimizes the same costs, so comparing
+two solvers on it compares solvers rather than moments. Create two scenarios from
+one seed with different timestamps to compare peak against off-peak.
+
+Pricing also writes the roads it touched to the traffic log as a side effect, so
+collection needs no separate step. Road routes are traced under the same weights
+the matrix was built with — drawing a peak-priced solution on static weights
+would render a road the optimizer never chose.
 """
 
 from __future__ import annotations
@@ -49,6 +68,7 @@ from __future__ import annotations
 import functools
 import logging
 import time
+from datetime import datetime
 from typing import Annotated
 
 import networkx as nx
@@ -58,8 +78,11 @@ from fastapi.responses import JSONResponse
 
 from qgati.api.schemas import (
     CompareResponse,
+    ConditionsIn,
+    ConditionsOut,
     DeliveryOut,
     DepotOut,
+    EdgeOut,
     OptimizeRequest,
     OptimizeResponse,
     RouteOut,
@@ -68,13 +91,14 @@ from qgati.api.schemas import (
     ScenarioSummary,
     SolverResultOut,
     StopOut,
+    TrafficLogEntry,
+    TrafficLogPage,
     VehicleOut,
 )
 from qgati.api.store import ScenarioNotFound, ScenarioStore
 from qgati.graph import (
     DEFAULT_PADDING_M,
     bbox_around_nodes,
-    build_cost_matrix,
     graph_to_geojson,
     load_delhi_graph,
     nearest_node,
@@ -96,6 +120,14 @@ from qgati.optimizer import (
     servable_nodes,
 )
 from qgati.optimizer.registry import DEFAULT_ITERATIONS, DEFAULT_POPULATION, SOLVERS
+from qgati.routing.dijkstra import WeightFn
+from qgati.traffic import (
+    ActiveConditions,
+    TrafficLogStore,
+    TrafficState,
+    price_scenario,
+    traffic_weight_function,
+)
 
 __all__ = ["app", "create_app"]
 
@@ -118,6 +150,11 @@ MAX_GENERATED_DELIVERIES = 200
 #: extract is the unscoped request, which is allowed — this only bounds a bbox
 #: so wide it would be a coordinate typo (e.g. a lat/lon swap).
 MAX_BBOX_SPAN = 1.0
+
+#: Page size for the traffic log, and the ceiling a client may ask for. The
+#: default matches the store's, so an unfiltered inspection returns a screenful.
+DEFAULT_LOG_PAGE = 100
+MAX_LOG_PAGE = 1000
 
 #: Starlette renamed this constant (422 UNPROCESSABLE_ENTITY -> ..._CONTENT), so
 #: accept whichever the installed version defines rather than emitting a
@@ -151,8 +188,26 @@ def get_store() -> ScenarioStore:
     return STORE
 
 
+@functools.lru_cache(maxsize=1)
+def _open_log_store() -> TrafficLogStore:
+    """The process's traffic log, opened on first use.
+
+    Cached rather than constructed per request: the store holds one SQLite
+    connection behind a lock, and opening a fresh one for every scenario would
+    be pure overhead. Lazy, like the graph, so importing the app touches no
+    files.
+    """
+    return TrafficLogStore()
+
+
+def get_log_store() -> TrafficLogStore:
+    """The traffic log, as an overridable dependency."""
+    return _open_log_store()
+
+
 GraphDep = Annotated[nx.Graph, Depends(get_graph)]
 StoreDep = Annotated[ScenarioStore, Depends(get_store)]
+LogStoreDep = Annotated[TrafficLogStore, Depends(get_log_store)]
 
 
 # --------------------------------------------------------------------------- #
@@ -198,6 +253,86 @@ def _not_found(scenario_id: str) -> HTTPException:
     )
 
 
+def _edge_pairs(pairs) -> list[EdgeOut]:
+    """Edge pairs as response models, in a stable order.
+
+    Sorted by their text form because node ids may be ints or strings and the two
+    are not orderable together. Stable output keeps responses diffable.
+    """
+    return [
+        EdgeOut(u=u, v=v)
+        for u, v in sorted(pairs, key=lambda pair: (str(pair[0]), str(pair[1])))
+    ]
+
+
+def _conditions_out(state: TrafficState) -> ConditionsOut:
+    """A traffic state as the response model, derived fields included."""
+    return ConditionsOut(
+        timestamp=state.timestamp,
+        peak_hour=state.peak_hour,
+        weather=state.weather,
+        traffic_condition=state.traffic_condition,
+        rain=state.conditions.rain,
+        accident_edges=_edge_pairs(state.conditions.accident_edges),
+        closed_edges=_edge_pairs(state.conditions.closed_edges),
+    )
+
+
+def _node_filter(value: str | None) -> int | str | None:
+    """Interpret a road-endpoint query parameter as a node id.
+
+    Query strings arrive as text, but node ids are integers on the Delhi graph.
+    SQLite compares across storage classes without coercing — integer always
+    sorts before text, never equal to it — so a filter bound as ``"249782331"``
+    would silently match no integer-keyed row. A parameter that reads as an
+    integer is therefore bound as one, and anything else is passed through as the
+    string id a differently-keyed graph would use.
+    """
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+
+def _traffic_state(graph: nx.Graph, conditions: ConditionsIn | None) -> TrafficState:
+    """Turn a request's conditions into a state, checking every named edge.
+
+    An incident naming a road that is not in the graph is a client error rather
+    than something to ignore: silently dropping it would price the scenario under
+    conditions the caller did not ask for, and report success.
+
+    Omitting the block means "now, clear, no incidents" — so the plain request
+    still produces a scenario with a real timestamp, and still logs.
+    """
+    if conditions is None:
+        return TrafficState.now()
+
+    absent = [
+        (edge.u, edge.v)
+        for edge in (*conditions.accident_edges, *conditions.closed_edges)
+        if not graph.has_edge(edge.u, edge.v)
+    ]
+    if absent:
+        raise HTTPException(
+            status_code=UNPROCESSABLE,
+            detail=(
+                f"{len(absent)} incident edge(s) are not in the road graph: "
+                f"{absent[:5]}" + (" ..." if len(absent) > 5 else "")
+            ),
+        )
+
+    return TrafficState(
+        timestamp=conditions.timestamp or datetime.now().astimezone(),
+        conditions=ActiveConditions(
+            rain=conditions.rain,
+            accident_edges=frozenset((e.u, e.v) for e in conditions.accident_edges),
+            closed_edges=frozenset((e.u, e.v) for e in conditions.closed_edges),
+        ),
+    )
+
+
 def _scenario_response(record) -> ScenarioResponse:
     scenario = record.scenario
     return ScenarioResponse(
@@ -218,6 +353,8 @@ def _scenario_response(record) -> ScenarioResponse:
         n_deliveries=scenario.n_deliveries,
         n_vehicles=scenario.n_vehicles,
         exactly_solvable=scenario.n_deliveries <= MAX_EXACT_DELIVERIES,
+        conditions=_conditions_out(record.traffic_state),
+        traffic_rows_logged=record.traffic_rows_logged,
     )
 
 
@@ -227,6 +364,7 @@ def _routes_out(
     evaluation: Evaluation,
     graph: nx.Graph,
     include_geometry: bool = True,
+    weight: str | WeightFn = "weight",
 ) -> list[RouteOut]:
     """Resolve a solution's delivery indices into ids, nodes, loads and costs.
 
@@ -237,6 +375,12 @@ def _routes_out(
     The depot is prepended and appended by this function because a
     :class:`Solution` route lists only its stops — the tour's return leg is
     implicit until something has to draw it.
+
+    ``weight`` must be the weight the cost matrix was built with. For a scenario
+    priced under traffic conditions that is the traffic weight function, and
+    passing the static default instead would trace each leg along the *untraffic'd*
+    shortest path — drawing a road the optimizer never chose, at a cost that does
+    not match the one it minimised.
     """
     scenario = record.scenario
     depot_node = scenario.depot.node
@@ -249,7 +393,7 @@ def _routes_out(
         # An unused vehicle has no tour to draw; emitting the depot twice would
         # render as a one-point line rather than as nothing.
         geometry = (
-            route_polyline(graph, [depot_node, *stop_nodes, depot_node])
+            route_polyline(graph, [depot_node, *stop_nodes, depot_node], weight=weight)
             if include_geometry and stop_nodes
             else []
         )
@@ -282,8 +426,9 @@ def create_app() -> FastAPI:
         version="0.1.0",
         description=(
             "Multi-algorithm vehicle routing for Delhi. Six solvers behind one "
-            "contract; ACO is the production default, chosen on Phase 4's "
-            "measured benchmark results."
+            "contract; QPSO is the production default, the problem statement's "
+            "focus algorithm, benchmarked against four conventional "
+            "metaheuristics and exact ground truth."
         ),
     )
 
@@ -337,9 +482,19 @@ def create_app() -> FastAPI:
         tags=["scenarios"],
     )
     def create_scenario(
-        request: ScenarioCreateRequest, graph: GraphDep, store: StoreDep
+        request: ScenarioCreateRequest,
+        graph: GraphDep,
+        store: StoreDep,
+        log_store: LogStoreDep,
     ) -> ScenarioResponse:
-        """Create a scenario, generated at random or described explicitly."""
+        """Create a scenario, generated at random or described explicitly.
+
+        The instance is priced under the requested traffic conditions (or the
+        system clock, if none were given), and the roads that pricing touched are
+        appended to the traffic log. Both happen here so that collecting the
+        dataset is a side effect of ordinary use rather than a separate step
+        somebody has to remember to run.
+        """
         if request.kind == "generate":
             assert request.n_deliveries is not None and request.n_vehicles is not None
             if request.n_deliveries > MAX_GENERATED_DELIVERIES:
@@ -395,17 +550,29 @@ def create_app() -> FastAPI:
                     status_code=UNPROCESSABLE, detail=str(error)
                 ) from None
 
+        state = _traffic_state(graph, request.conditions)
+
         try:
-            cost_matrix = build_cost_matrix(graph, scenario)
+            priced = price_scenario(graph, scenario, state, log_store)
         except ValueError as error:
-            # Unreachable node pairs. build_cost_matrix refuses to substitute
-            # inf, because that would let an optimizer return a confidently wrong
-            # answer; the message tells the client to use the servable subgraph.
+            # Either a node missing from the graph, or a pair unreachable *under
+            # these conditions*. The builder refuses to substitute inf, because
+            # that would let an optimizer return a confidently wrong answer; the
+            # message tells the client to use the servable subgraph.
+            detail = str(error)
+            if state.conditions.closed_edges:
+                detail += (
+                    f" This scenario was priced with "
+                    f"{len(state.conditions.closed_edges)} closure(s), which can "
+                    "sever a route that exists in the static network."
+                )
             raise HTTPException(
-                status_code=UNPROCESSABLE, detail=str(error)
+                status_code=UNPROCESSABLE, detail=detail
             ) from None
 
-        return _scenario_response(store.add(scenario, cost_matrix))
+        return _scenario_response(
+            store.add(scenario, priced.cost_matrix, state, priced.rows_logged)
+        )
 
     @application.get(
         "/scenarios", response_model=list[ScenarioSummary], tags=["scenarios"]
@@ -515,7 +682,7 @@ def create_app() -> FastAPI:
     ) -> OptimizeResponse:
         """Run one solver on a stored scenario.
 
-        Defaults to the production default solver (ACO) at the benchmark's
+        Defaults to the production default solver (QPSO) at the benchmark's
         default search effort, so an API result is comparable with a benchmark
         result. The body is optional: ``POST /optimize/{id}`` with no payload at
         all runs the default.
@@ -558,6 +725,10 @@ def create_app() -> FastAPI:
 
         evaluation = evaluate(solution, record.scenario, record.cost_matrix)
 
+        # Trace the routes under the same weights that priced them, so the drawn
+        # line is the road the optimizer actually chose.
+        weight = traffic_weight_function(graph, record.traffic_state)
+
         return OptimizeResponse(
             scenario_id=record.scenario_id,
             solver=spec.key,
@@ -575,6 +746,7 @@ def create_app() -> FastAPI:
                 evaluation,
                 graph,
                 include_geometry=request.include_geometry,
+                weight=weight,
             ),
             convergence=convergence,
         )
@@ -671,6 +843,52 @@ def create_app() -> FastAPI:
             optimal=optimal,
             best_known=best_known,
             results=results,
+        )
+
+    # -- traffic ------------------------------------------------------------ #
+    @application.get(
+        "/traffic/log", response_model=TrafficLogPage, tags=["traffic"]
+    )
+    def traffic_log(
+        log_store: LogStoreDep,
+        limit: int = Query(default=DEFAULT_LOG_PAGE, ge=1, le=MAX_LOG_PAGE),
+        offset: int = Query(default=0, ge=0),
+        traffic_condition: str | None = Query(
+            default=None, description="Filter to 'peak' or 'off_peak'."
+        ),
+        incident_type: str | None = Query(
+            default=None, description="Filter to 'accident' or 'road_closure'."
+        ),
+        road_u: str | None = Query(default=None, description="Filter by edge start."),
+        road_v: str | None = Query(default=None, description="Filter by edge end."),
+    ) -> TrafficLogPage:
+        """Inspect what the simulator has been logging, newest first.
+
+        Rows are written as a side effect of creating scenarios — one per road a
+        scenario's pricing touched, plus any road an incident named. This
+        endpoint only reads them; there is no prediction here. The table exists so
+        a later phase has a ``(road, time, weather, incident) -> travel_time``
+        history to learn from.
+
+        ``total`` counts every row matching the filters, not just this page, so a
+        client can page through a filter without a separate count request. Ordered
+        by insertion rather than by ``timestamp``: timestamps are ISO strings, and
+        string order is only chronological while every row shares one UTC offset.
+        """
+        rows, total = log_store.read(
+            limit=limit,
+            offset=offset,
+            road_u=_node_filter(road_u),
+            road_v=_node_filter(road_v),
+            traffic_condition=traffic_condition,
+            incident_type=incident_type,
+        )
+        return TrafficLogPage(
+            items=[TrafficLogEntry(**row.to_dict()) for row in rows],
+            total=total,
+            limit=limit,
+            offset=offset,
+            has_more=offset + len(rows) < total,
         )
 
     return application
