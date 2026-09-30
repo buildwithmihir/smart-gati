@@ -6,7 +6,9 @@ capacity allows. The saving from joining stops ``i`` and ``j`` is
 
     s(i, j) = c(depot, i) + c(depot, j) - c(i, j)
 
-i.e. what you avoid by not running two separate out-and-back trips.
+i.e. what you avoid by not running two separate out-and-back trips. ``c`` is the
+shared weighted objective, so a "saving" is rupees, not seconds — the heuristic
+trades time against distance and fuel exactly as the metaheuristics do.
 
 Fast and deterministic, and typically within ~10% of optimal — which is exactly
 why it is here: it is the yardstick a metaheuristic has to beat to justify
@@ -16,9 +18,9 @@ Note on one-way streets
 -----------------------
 The formula above is the classical *symmetric* one: it values the two removed
 legs as ``c(depot, i) + c(depot, j)``, which only equals the true
-``c(i, depot) + c(depot, j)`` when travel time is direction-independent. Real
-Delhi is not — one-way streets give the scenario cost matrices a mean relative
-asymmetry of about 12%.
+``c(i, depot) + c(depot, j)`` when the cost of a leg is direction-independent.
+Real Delhi is not — one-way streets give the scenario cost matrices a mean
+relative asymmetry of about 12%.
 
 That costs accuracy, not correctness. Solutions remain feasible and the search
 stays valid; it simply leaves more on the table than it would on a symmetric
@@ -32,7 +34,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from qgati.optimizer.fitness import route_travel_cost
+from qgati.optimizer.fitness import route_total_cost
 from qgati.optimizer.models import CAPACITY_EPSILON, Scenario, Solution
 
 if TYPE_CHECKING:  # avoid an optimizer <-> graph import cycle at runtime
@@ -56,6 +58,14 @@ def clarke_wright_savings(
     produces a solution :func:`~qgati.optimizer.fitness.evaluate` will reject as
     capacity-infeasible; it exists so the return type stays well-formed rather
     than to paper over an undersized fleet.
+
+    Note on time windows: the greedy order in which pairs are considered stays
+    window-blind, and has to — a saving is a property of two legs and says
+    nothing about when the vehicle reaches them. What windows change is which
+    merges are *committed*: a merge is refused unless the joined route is
+    cheaper than the two it replaces once any lateness it incurs is priced in.
+    Without that check this would be the one solver the penalty never reached,
+    because its main loop only ever compares leg costs.
     """
     n = scenario.n_deliveries
     k = scenario.n_vehicles
@@ -65,7 +75,10 @@ def clarke_wright_savings(
     demands = scenario.demands
     capacities = scenario.capacities
     index = cost_matrix.delivery_node_index
-    matrix = cost_matrix.matrix
+    # Savings are computed against the same priced objective every other solver
+    # minimises. `c` below is therefore rupees per leg, not seconds: the
+    # formula's shape is unchanged, but "saving" now means money saved.
+    matrix = cost_matrix.objective_matrix
     depot = cost_matrix.depot_index
 
     routes: dict[int, list[int]] = {i: [i] for i in range(n)}
@@ -119,6 +132,22 @@ def clarke_wright_savings(
             continue
 
         merged = left + right
+
+        # The saving above says joining these two is cheaper than running them
+        # separately — but it compares *legs*, and once deliveries carry windows
+        # the arrivals a merged route makes are not the arrivals the two routes
+        # made. A positive saving can therefore still buy a lateness penalty
+        # worth more than it saves, so the merge is re-checked on the full route
+        # cost. Without windows the two cannot disagree: the gap between the two
+        # sides *is* the saving, so the check is skipped rather than paid for.
+        if scenario.has_time_windows and route_total_cost(
+            merged, scenario, cost_matrix
+        ) >= (
+            route_total_cost(routes[route_i], scenario, cost_matrix)
+            + route_total_cost(routes[route_j], scenario, cost_matrix)
+        ):
+            continue
+
         routes[route_i] = merged
         loads[route_i] += loads[route_j]
         for delivery in right:
@@ -173,13 +202,19 @@ def _force_merge_to_fleet(
 def _cheapest_merge(
     left: list[int], right: list[int], scenario: Scenario, cost_matrix: CostMatrix
 ) -> tuple[list[int], float]:
-    """Cheapest of the four ways to concatenate two routes."""
+    """Cheapest of the four ways to concatenate two routes.
+
+    Compared on the *total* route cost — travel plus any lateness — rather than
+    on travel alone. Two concatenations of the same stops can differ in whether
+    they meet a window at all, and a version of this that only saw the driving
+    would pick the shorter one and then be scored for the window it broke.
+    """
     best_route: list[int] = []
     best_cost = float("inf")
     for first in (left, left[::-1]):
         for second in (right, right[::-1]):
             candidate = list(first) + list(second)
-            cost = route_travel_cost(candidate, scenario, cost_matrix)
+            cost = route_total_cost(candidate, scenario, cost_matrix)
             if cost < best_cost:
                 best_cost, best_route = cost, candidate
     return best_route, best_cost

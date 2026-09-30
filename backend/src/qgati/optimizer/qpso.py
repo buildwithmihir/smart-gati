@@ -12,7 +12,7 @@ The encoding this solver searches over — random keys decoded through an optima
 capacity split — is documented in :mod:`qgati.optimizer.decoding`, together with
 why it is chosen and why every metaheuristic here shares it. The short version:
 positions stay continuous so the quantum update applies unchanged, and capacity
-holds by construction so the swarm optimises pure travel cost.
+holds by construction so the swarm optimises the weighted objective alone.
 
 Reference
 ---------
@@ -89,7 +89,7 @@ def run_qpso(
         A scenario and its precomputed costs. Note this argument order is the
         reverse of :func:`~qgati.optimizer.brute_force.solve_brute_force` and
         :func:`~qgati.optimizer.savings.clarke_wright_savings`, which take
-        ``(scenario, cost_matrix)``. All four metaheuristics take
+        ``(scenario, cost_matrix)``. All three metaheuristics take
         ``(cost_matrix, scenario)``, so a benchmark can dispatch them uniformly.
     num_particles, num_iterations
         Swarm size and generations.
@@ -101,9 +101,10 @@ def run_qpso(
     Returns
     -------
     (best_solution, best_cost, convergence_history)
-        ``best_cost`` is the fitness actually minimised — travel cost plus any
-        constraint penalties — and equals the travel cost whenever the solution
-        is feasible, which the optimal-split decoder makes the normal case.
+        ``best_cost`` is the fitness actually minimised — the weighted travel
+        cost plus any constraint penalties — and equals the travel cost whenever
+        the solution is feasible, which the optimal-split decoder makes the
+        normal case. Both are in rupees: time, distance and fuel combined.
         ``convergence_history[i]`` is the best-so-far cost after generation
         ``i``; it is non-increasing and has exactly ``num_iterations`` entries.
     """

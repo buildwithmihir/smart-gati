@@ -1,12 +1,12 @@
-"""Baseline solver tests: genetic algorithm, classical PSO, and ACO.
+"""Baseline solver tests: genetic algorithm and classical PSO.
 
 Three claims are under test:
 
 1. **Contract** — every Phase 4 solver answers in the same shape as QPSO: a
    feasible, fleet-shaped solution, a cost that agrees with that solution, and a
    convergence history of exactly the requested length. This is what lets
-   ``benchmarks/run_comparison.py`` dispatch all four interchangeably, so it is
-   asserted against all four rather than the three new ones.
+   ``benchmarks/run_comparison.py`` dispatch every solver interchangeably, so it
+   is asserted against the three metaheuristics rather than QPSO alone.
 2. **Quality** — all of them reach the exact optimum on instances small enough
    for brute force, and beat Clarke-Wright Savings on instances too large to
    solve exactly.
@@ -27,23 +27,15 @@ import numpy as np
 import pytest
 
 from qgati.graph import build_cost_matrix, build_synthetic_graph
-from qgati.graph.cost_matrix import CostMatrix
 from qgati.optimizer import (
-    Delivery,
-    Depot,
-    Scenario,
-    Vehicle,
-    assemble_routes,
     build_random_scenario,
     clarke_wright_savings,
     evaluate,
-    run_aco,
     run_classical_pso,
     run_genetic_algorithm,
     run_qpso,
     solve_brute_force,
 )
-from qgati.optimizer.aco import _construct_routes, _initial_pheromone
 from qgati.optimizer.classical_pso import DEFAULT_NUM_ITERATIONS as CPSO_ITERATIONS
 from qgati.optimizer.classical_pso import DEFAULT_NUM_PARTICLES as CPSO_PARTICLES
 from qgati.optimizer.genetic_algorithm import order_crossover, swap_mutation
@@ -61,7 +53,6 @@ SOLVERS = (
     ("QPSO", run_qpso, "num_iterations"),
     ("Classical PSO", run_classical_pso, "num_iterations"),
     ("Genetic Algorithm", run_genetic_algorithm, "num_generations"),
-    ("ACO", run_aco, "num_iterations"),
 )
 
 #: Explicit test ids, so a failure names the solver rather than an address.
@@ -97,7 +88,7 @@ def _run(name, solver, budget_kwarg, cost_matrix, scenario, seed, budget=None):
 def test_solvers_return_feasible_fleet_shaped_solutions(
     small_graph, label, solver, budget_kwarg
 ) -> None:
-    """The output contract every solver must satisfy, asserted on all four."""
+    """The output contract every solver must satisfy, asserted on all three."""
     scenario = build_random_scenario(small_graph, 8, 3, seed=303)
     cost_matrix = build_cost_matrix(small_graph, scenario)
 
@@ -159,10 +150,9 @@ def test_solvers_reach_the_optimum_on_tiny_instances(
     """Every solver's best run must land within 5% of the exact optimum.
 
     Measured at default settings over 5 seeds, worst best-run gap per solver:
-    QPSO 0.0%, classical PSO 0.0%, GA 0.0%, ACO 2.4% (on n=6 k=2, where ACO's
-    greedy bias is not overcome within 100 iterations). The 5% bound therefore
-    holds with margin for all four, but asserting a *per-run* bound would not:
-    classical PSO's single worst run on n=8 k=3 was 7.3% above optimum.
+    QPSO 0.0%, classical PSO 0.0%, GA 0.0%. The 5% bound therefore holds with
+    margin for all three, but asserting a *per-run* bound would not: classical
+    PSO's single worst run on n=8 k=3 was 7.3% above optimum.
     """
     scenario = build_random_scenario(
         small_graph, n_deliveries, n_vehicles, seed=scenario_seed
@@ -200,9 +190,11 @@ def test_solvers_beat_savings_beyond_exact_reach(
 ) -> None:
     """The whole point of a metaheuristic: beat the constructive baseline.
 
-    Individual seeds may lose — all four are stochastic and Savings is a strong
-    heuristic — so this asserts on aggregate behaviour. Measured on n=15 k=3:
-    every solver beat Savings on 5/5 seeds, by 33-44%.
+    Individual seeds may lose — all three are stochastic and Savings is a strong
+    heuristic — so this asserts on aggregate behaviour. Measured on n=15 k=3
+    under the earlier time-only objective: every solver beat Savings on 5/5
+    seeds, by 33-44%. The assertion below is deliberately weaker (3/5) so it
+    does not pin a margin that the combined objective may move.
     """
     scenario = build_random_scenario(large_graph, 15, 3, seed=1)
     cost_matrix = build_cost_matrix(large_graph, scenario)
@@ -326,90 +318,6 @@ def test_swap_mutation_stays_a_permutation_and_is_rate_sensitive() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# ACO mechanics
-# --------------------------------------------------------------------------- #
-def test_aco_construction_respects_capacity(small_graph) -> None:
-    """An ant must never overload a vehicle while a legal move exists.
-
-    Capacity here is generous (slack 2.5 over three vehicles), so a greedy fill
-    comfortably fits the fleet and no overflow is forced. Across 100
-    constructions, every route must be within its vehicle's limit.
-    """
-    scenario = build_random_scenario(small_graph, 12, 3, seed=5, capacity_slack=2.5)
-    cost_matrix = build_cost_matrix(small_graph, scenario)
-    pheromone = np.full(
-        (len(cost_matrix), len(cost_matrix)), _initial_pheromone(cost_matrix)
-    )
-    rng = np.random.default_rng(0)
-
-    for _ in range(100):
-        routes = _construct_routes(pheromone, cost_matrix, scenario, rng, 1.0, 2.0)
-        assert sorted(d for route in routes for d in route) == list(
-            range(scenario.n_deliveries)
-        ), "every delivery must be served exactly once"
-        for vehicle, route in enumerate(routes):
-            load = sum(scenario.demands[d] for d in route)
-            assert load <= scenario.capacities[vehicle] + TOLERANCE
-
-
-def test_aco_pheromone_starts_at_deposit_scale(small_graph) -> None:
-    """Initial pheromone must be anchored to the instance's cost magnitude.
-
-    A constant starting value would swamp the heuristic term on real travel
-    times (~10^3 seconds) and turn the first iterations into greedy
-    nearest-neighbour, which is not what ACO is supposed to be.
-    """
-    scenario = build_random_scenario(small_graph, 8, 3, seed=303)
-    cost_matrix = build_cost_matrix(small_graph, scenario)
-
-    tau0 = _initial_pheromone(cost_matrix)
-    assert 0.0 < tau0 < 1.0
-    # Scale-free: a single ant's deposit is somewhere near the starting value.
-    assert tau0 == pytest.approx(
-        1.0 / (len(cost_matrix) * cost_matrix.matrix[~np.eye(len(cost_matrix), dtype=bool)].mean()),
-        rel=1e-9,
-    )
-
-
-def test_aco_overflow_stays_fleet_shaped_and_is_reported_by_fitness() -> None:
-    """Aggregate-feasible but bin-packing-infeasible: the ant must stay well-formed.
-
-    Three deliveries of 7, 7 and 6 into two vehicles of 10 sums to exactly the
-    fleet capacity, so ``Scenario`` accepts it — but no two-vehicle packing
-    exists. The ant is then *forced* to overflow, and the contract is that it
-    still returns a correctly-shaped route list so the shared fitness function,
-    not a malformed solution, is what reports the problem.
-    """
-    cost_matrix = CostMatrix(
-        matrix=np.zeros((4, 4)),
-        nodes=(0, 1, 2, 3),
-        delivery_node_index=(1, 2, 3),
-    )
-    scenario = Scenario(
-        depot=Depot(node=0, lat=0.0, lon=0.0),
-        deliveries=(
-            Delivery(id="A", node=1, demand=7),
-            Delivery(id="B", node=2, demand=7),
-            Delivery(id="C", node=3, demand=6),
-        ),
-        vehicles=(Vehicle(id="V0", capacity=10), Vehicle(id="V1", capacity=10)),
-    )
-    assert scenario.total_demand <= scenario.total_capacity  # passes validation
-
-    pheromone = np.full((4, 4), 1.0)
-    routes = _construct_routes(
-        pheromone, cost_matrix, scenario, np.random.default_rng(0), 1.0, 2.0
-    )
-
-    assert len(routes) == scenario.n_vehicles, "must not open a route beyond the fleet"
-    assert sorted(d for route in routes for d in route) == [0, 1, 2]
-
-    evaluation = evaluate(assemble_routes(routes, scenario), scenario, cost_matrix)
-    assert not evaluation.feasible, "no feasible packing exists, so this must be flagged"
-    assert evaluation.capacity_penalty > 0.0
-
-
-# --------------------------------------------------------------------------- #
 # Argument validation
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("label,solver,budget_kwarg", SOLVERS, ids=SOLVER_IDS)
@@ -443,10 +351,3 @@ def test_solvers_reject_bad_solver_specific_arguments(small_graph) -> None:
 
     with pytest.raises(ValueError, match="max_velocity"):
         run_classical_pso(cost_matrix, scenario, max_velocity=0.0)
-
-    with pytest.raises(ValueError, match="num_ants"):
-        run_aco(cost_matrix, scenario, num_ants=0)
-    with pytest.raises(ValueError, match="evaporation"):
-        run_aco(cost_matrix, scenario, evaporation=1.0)
-    with pytest.raises(ValueError, match="alpha"):
-        run_aco(cost_matrix, scenario, alpha=-1.0)

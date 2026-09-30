@@ -321,6 +321,9 @@ def test_optimal_split_prefers_the_cheaper_partition() -> None:
         matrix=matrix,
         nodes=tuple(range(5)),
         delivery_node_index=(1, 2, 3, 4),
+        # These numbers are travel seconds; the objective needs metres too, so
+        # the toy network is taken to run at a constant 30 km/h.
+        distance_matrix=matrix * (30.0 / 3.6),
     )
     scenario = Scenario(
         depot=Depot(node=0, lat=0.0, lon=0.0),
@@ -331,7 +334,10 @@ def test_optimal_split_prefers_the_cheaper_partition() -> None:
     )
 
     # Clusters are contiguous in this permutation, so the split must cut between
-    # them: [0,1],[2,3] costs 222 against 401 for the interleaved alternative.
+    # them: 222 seconds of driving against 401 for the interleaved alternative.
+    # At this toy network's constant 30 km/h the combined objective is a fixed
+    # multiple of the time — every leg prices at Rs0.1549/s — so the same split
+    # wins either way, at Rs34.4 against Rs62.1.
     routes = optimal_split([0, 1, 2, 3], scenario, cost_matrix, capacity=2, max_routes=2)
     assert routes is not None
     groups = sorted(sorted(route) for route in routes)
@@ -352,6 +358,7 @@ def test_optimal_split_returns_none_when_infeasible() -> None:
         matrix=np.zeros((3, 3)),
         nodes=(0, 1, 2),
         delivery_node_index=(1, 2),
+        distance_matrix=np.zeros((3, 3)),
     )
     scenario = Scenario(
         depot=Depot(node=0, lat=0.0, lon=0.0),
@@ -374,14 +381,15 @@ def test_qpso_on_real_delhi_graph(capsys) -> None:
     """The headline claim, on real travel times rather than synthetic ones.
 
     Measured: QPSO matches the exact optimum on n=6/8/10 and beats Savings by
-    ~9-10% on n=15-20, where no exact answer is available.
+    ~9-10% on n=15-20, where no exact answer is available. Costs are the combined
+    rupee objective, not seconds.
     """
     import os
 
     from qgati.graph import is_delhi_graph_cached, load_delhi_graph
 
-    if not os.environ.get("QGATI_RUN_SLOW"):
-        pytest.skip("set QGATI_RUN_SLOW=1 to run against the real Delhi graph")
+    if not os.environ.get("SMART_GATI_RUN_SLOW"):
+        pytest.skip("set SMART_GATI_RUN_SLOW=1 to run against the real Delhi graph")
     if not is_delhi_graph_cached():
         pytest.skip("no cached Delhi graph; run load_delhi_graph() once")
 
@@ -407,9 +415,9 @@ def test_qpso_on_real_delhi_graph(capsys) -> None:
 
         with capsys.disabled():
             print(
-                f"[Delhi n={n_deliveries} k={n_vehicles}] brute={optimum:.1f}s  "
-                f"savings={savings:.1f}s (+{100*(savings-optimum)/optimum:.1f}%)  "
-                f"qpso={qpso_best:.1f}s (+{100*(qpso_best-optimum)/optimum:.1f}%)"
+                f"[Delhi n={n_deliveries} k={n_vehicles}] brute=Rs{optimum:.1f}  "
+                f"savings=Rs{savings:.1f} (+{100*(savings-optimum)/optimum:.1f}%)  "
+                f"qpso=Rs{qpso_best:.1f} (+{100*(qpso_best-optimum)/optimum:.1f}%)"
             )
 
         assert qpso_best <= optimum * (1 + ALLOWED_GAP)
@@ -430,7 +438,7 @@ def test_qpso_on_real_delhi_graph(capsys) -> None:
 
     with capsys.disabled():
         print(
-            f"[Delhi n=15 k=3] savings={savings:.1f}s  qpso best={min(runs):.1f}s  "
+            f"[Delhi n=15 k=3] savings=Rs{savings:.1f}  qpso best=Rs{min(runs):.1f}  "
             f"({100*(min(runs)-savings)/savings:+.1f}%)  "
             f"wins={sum(1 for r in runs if r < savings)}/{len(runs)}"
         )

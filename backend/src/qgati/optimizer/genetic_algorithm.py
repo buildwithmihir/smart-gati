@@ -4,7 +4,7 @@ The classical evolutionary baseline: a population of candidate routes evolved by
 selection, crossover and mutation. Chromosomes are *permutations* of the
 delivery indices and are decoded through the same optimal capacity split every
 other solver here uses (:mod:`qgati.optimizer.decoding`), so capacity holds by
-construction and the GA optimises pure travel cost like the swarms do.
+construction and the GA optimises the shared weighted objective like the swarms do.
 
 Why permutations rather than QPSO's random keys — and what it costs
 ------------------------------------------------------------------
@@ -60,7 +60,7 @@ __all__ = [
 ]
 
 #: Matches QPSO's 30 particles / 100 iterations. The benchmark's claim is that
-#: the four metaheuristics are compared at equal budget, so these move together.
+#: the three metaheuristics are compared at equal budget, so these move together.
 DEFAULT_POPULATION_SIZE = 30
 DEFAULT_NUM_GENERATIONS = 100
 

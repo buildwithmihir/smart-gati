@@ -53,7 +53,7 @@ _CACHE_TEMPLATE = "delhi_drive_{dist}m.graphml"
 
 # backend/data/ — src/qgati/graph/graph_builder.py -> backend/
 _BACKEND_DIR = Path(__file__).resolve().parents[3]
-DEFAULT_DATA_DIR = Path(os.environ.get("QGATI_DATA_DIR", _BACKEND_DIR / "data"))
+DEFAULT_DATA_DIR = Path(os.environ.get("SMART_GATI_DATA_DIR", _BACKEND_DIR / "data"))
 DEFAULT_CACHE_DIR = DEFAULT_DATA_DIR / "cache"
 
 

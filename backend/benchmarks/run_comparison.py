@@ -15,10 +15,9 @@ solver                 kind        role
 =====================  ==========  ==================================================
 ``brute force``        exact       ground truth — only for n <= 10
 ``savings``            heuristic   constructive baseline (Clarke-Wright)
-``ACO``                metaheuristic  the production default (see the registry)
 ``genetic algorithm``  metaheuristic
 ``classical PSO``      metaheuristic  the control: isolates QPSO's quantum update
-``QPSO``               metaheuristic  the research contribution
+``QPSO``               metaheuristic  the production default and research contribution
 =====================  ==========  ==================================================
 
 Two tables come out, and the second matters as much as the first:

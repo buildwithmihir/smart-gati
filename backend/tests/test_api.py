@@ -21,7 +21,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from qgati.api.main import create_app, get_graph, get_log_store, get_store
+from qgati.analytics import RunLogStore
+from qgati.api.main import create_app, get_graph, get_log_store, get_run_store, get_store
 from qgati.api.store import ScenarioStore
 from qgati.graph import build_synthetic_graph
 from qgati.optimizer import servable_nodes
@@ -66,9 +67,9 @@ def client(graph):
     The store override must be a *callable returning one instance*, not the class
     itself: ``get_store`` is a dependency, so passing ``ScenarioStore`` would have
     FastAPI construct a new empty store for every request and nothing would ever
-    be found by id. The traffic log is overridden for the same reason plus one
-    more — in-memory, so creating a scenario in a test never appends to the real
-    ``backend/data/traffic_log.db``.
+    be found by id. The traffic log and the run history are overridden for the same
+    reason plus one more — in-memory, so a test that creates a scenario or solves
+    one never appends to the real ``backend/data/`` databases.
     """
     application = create_app()
     store = ScenarioStore()
@@ -76,6 +77,7 @@ def client(graph):
     application.dependency_overrides[get_graph] = lambda: graph
     application.dependency_overrides[get_store] = lambda: store
     application.dependency_overrides[get_log_store] = lambda: log_store
+    application.dependency_overrides[get_run_store] = lambda: RunLogStore(":memory:")
     with TestClient(application) as test_client:
         yield test_client
     application.dependency_overrides.clear()
@@ -104,8 +106,8 @@ def test_solvers_endpoint_lists_every_solver_and_the_default(client) -> None:
 
     The production-default assertion is the important one: QPSO is the problem
     statement's focus algorithm (PS 26137), so the default is a project
-    requirement rather than a benchmark outcome — if it ever silently reverts to
-    ACO, this test fails.
+    requirement rather than a benchmark outcome — if it ever silently changes,
+    this test fails.
     """
     response = client.get("/solvers")
     assert response.status_code == 200
@@ -116,7 +118,6 @@ def test_solvers_endpoint_lists_every_solver_and_the_default(client) -> None:
     assert keys == [
         "brute_force",
         "savings",
-        "aco",
         "genetic_algorithm",
         "classical_pso",
         "qpso",
@@ -125,7 +126,7 @@ def test_solvers_endpoint_lists_every_solver_and_the_default(client) -> None:
     by_key = {spec["key"]: spec for spec in payload["solvers"]}
     assert by_key["brute_force"]["is_exact"] is True
     assert by_key["savings"]["is_stochastic"] is False
-    assert by_key["aco"]["is_stochastic"] is True
+    assert by_key["classical_pso"]["is_stochastic"] is True
 
 
 def test_servable_node_count(client) -> None:
@@ -355,7 +356,7 @@ def test_optimize_returns_a_convergence_history_for_stochastic_solvers(client) -
     scenario_id = make_scenario(client)["scenario_id"]
     body = client.post(
         f"/optimize/{scenario_id}",
-        json={"solver": "aco", "iterations": 25, "seed": 0},
+        json={"solver": "classical_pso", "iterations": 25, "seed": 0},
     ).json()
     assert len(body["convergence"]) == 25
     assert all(
@@ -383,7 +384,7 @@ def test_optimize_unknown_solver_lists_the_valid_ones(client) -> None:
     response = client.post(f"/optimize/{scenario_id}", json={"solver": "annealing"})
     assert response.status_code == 422
     assert "unknown solver" in response.text
-    assert "aco" in response.text
+    assert "classical_pso" in response.text
 
 
 def test_optimize_rejects_brute_force_beyond_its_exact_limit(client) -> None:
@@ -410,7 +411,6 @@ def test_compare_runs_every_solver_with_gaps_against_the_optimum(client) -> None
     assert set(results) == {
         "brute_force",
         "savings",
-        "aco",
         "genetic_algorithm",
         "classical_pso",
         "qpso",
@@ -448,7 +448,7 @@ def test_compare_skips_brute_force_beyond_its_exact_limit(client) -> None:
     assert body["best_known"] == pytest.approx(
         min(row["travel_cost"] for row in body["results"] if row["skipped"] is None)
     )
-    assert results["aco"]["gap_vs_best_pct"] is not None
+    assert results["classical_pso"]["gap_vs_best_pct"] is not None
 
 
 def test_compare_unknown_scenario_is_404(client) -> None:

@@ -27,3 +27,23 @@ export const MARKER_STAGGER_MS = 22;
  * to read as the map struggling rather than the map arriving.
  */
 export const MARKER_STAGGER_CAP = 12;
+
+/**
+ * How long an injected incident's road pulses before settling.
+ *
+ * The pulse is the acknowledgement that the click landed — it starts on the
+ * click, while the incident is being priced and the re-optimization is still
+ * running, so it is answering "yes, that road" rather than "here is the answer".
+ * That is why it is short and why it does not wait for the response: an
+ * acknowledgement that arrives with the result is not an acknowledgement.
+ *
+ * It ends at a steady highlight rather than at nothing, because the incident
+ * stays live until it is cleared and a road that is closed should keep saying
+ * so. Deliberately under `REDRAW_MS` × 3: the pulse has to be over before the
+ * routes finish dissolving, or the eye is pulled to the road instead of to the
+ * change.
+ */
+export const PULSE_MS = 1200;
+
+/** Pulses within `PULSE_MS`. Three reads as a signal; two reads as a flicker. */
+export const PULSE_COUNT = 3;

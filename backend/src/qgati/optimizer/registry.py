@@ -12,13 +12,9 @@ Production default
 :data:`DEFAULT_SOLVER_KEY` is **QPSO**. The SIH problem statement (PS 26137) names
 quantum-inspired search as the focus of this work — quantum particle swarm
 optimization, benchmarked against conventional metaheuristics and exact methods —
-so it is the solver the API serves by default, and the other five here exist to
-benchmark it: four conventional metaheuristics (Savings, GA, classical PSO, ACO)
-and one exact ground truth (brute force).
-
-The benchmark is reported in full, including where QPSO is *not* strongest. ACO
-reaches lower raw cost at n=15 and n=25, and GA is second at n=8 and n=25; that is
-a real finding and the README states it plainly rather than burying it.
+so it is the solver the API serves by default, and the other four here exist to
+benchmark it: three conventional metaheuristics (Savings, GA, classical PSO) and
+one exact ground truth (brute force).
 
 What the benchmark supports is the comparison QPSO was chosen for. At equal budget
 QPSO beats classical PSO — 5.9% better at n=25 with 3,000 iterations, and 3/5 runs
@@ -29,6 +25,17 @@ controlled comparison available here, and it is the problem statement's own clai
 about quantum-inspired sampling, measured. See the backend README, "What the
 benchmark actually shows", for the numbers behind every sentence above.
 
+A finding this registry no longer records, deliberately
+-------------------------------------------------------
+ACO was **removed from the project**, and it is worth being explicit that this
+deleted a result rather than a solver that was merely redundant: when it was
+benchmarked, ACO reached a *lower mean raw cost than QPSO* at n=15 and n=25, and
+held the best mean at every instance size. The four
+solvers remaining here are not a full account of what QPSO was measured against,
+and the two README tables that still hold ACO's figures are kept as measurements
+rather than re-run. See "Removed: ACO" in ``DESIGN_DECISIONS.md``. Any claim of
+the form "QPSO is the best of these" is now true of a smaller field.
+
 Uniform interface
 -----------------
 Every solver is callable as::
@@ -36,7 +43,7 @@ Every solver is callable as::
     solver(cost_matrix, scenario, seed=0, population=30, iterations=100)
         -> (Solution, cost, convergence_history)
 
-The four metaheuristics name their arguments differently on purpose —
+The three metaheuristics name their arguments differently on purpose —
 ``num_generations`` reads better in a GA than ``num_iterations`` — so the spec
 carries the argument names rather than forcing the solvers to rename them. The
 deterministic solvers (brute force, Savings) accept and ignore the three
@@ -49,7 +56,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
-from qgati.optimizer.aco import run_aco
 from qgati.optimizer.brute_force import MAX_EXACT_DELIVERIES, solve_brute_force
 from qgati.optimizer.classical_pso import run_classical_pso
 from qgati.optimizer.fitness import evaluate
@@ -182,14 +188,6 @@ SOLVERS: tuple[SolverSpec, ...] = (
         budget_kwarg=None,
         population_kwarg=None,
         is_stochastic=False,
-    ),
-    SolverSpec(
-        key="aco",
-        name="ACO",
-        run=run_aco,
-        budget_kwarg="num_iterations",
-        population_kwarg="num_ants",
-        is_stochastic=True,
     ),
     SolverSpec(
         key="genetic_algorithm",

@@ -17,12 +17,13 @@
 
 import { Loader2, PackageOpen, Play } from "lucide-react";
 
+import { PlanReasoning, RouteReasoning } from "@/components/dashboard/why-this-route";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Route, ScenarioResponse } from "@/lib/api";
+import type { Explanation, Route, ScenarioResponse } from "@/lib/api";
 import { colorForVehicle, tintForVehicle } from "@/lib/vehicle-colors";
 
 /** How many placeholders to draw while the first solve runs. */
@@ -33,6 +34,18 @@ type StopsPanelProps = {
   routes: Route[];
   loading: boolean;
   onLoadSample: () => void;
+  /**
+   * The decision trace for the plan on screen, or `null` for a first dispatch.
+   *
+   * Optional so the panel still renders standalone; a caller that has no trace
+   * to give gets the same "nothing to compare against yet" wording a dispatch
+   * gets, rather than a panel that looks broken.
+   */
+  explanation?: Explanation | null;
+  /** Best-so-far cost per iteration for the solve behind these routes. */
+  convergence?: number[];
+  /** Named on the convergence chart. */
+  solverName?: string;
 };
 
 /**
@@ -61,11 +74,27 @@ function StopCardSkeleton({ index }: { index: number }) {
   );
 }
 
-export default function StopsPanel({ scenario, routes, loading, onLoadSample }: StopsPanelProps) {
+export default function StopsPanel({
+  scenario,
+  routes,
+  loading,
+  onLoadSample,
+  explanation = null,
+  convergence = [],
+  solverName = "",
+}: StopsPanelProps) {
   const activeRoutes = routes.filter((route) => route.stops.length > 0);
 
   const demandById = new Map(
     (scenario?.deliveries ?? []).map((delivery) => [delivery.id, delivery.demand]),
+  );
+
+  // Indexed by vehicle so a section can find its own trace without scanning the
+  // list per vehicle, and so a vehicle the re-plan did not touch is simply
+  // absent — which `RouteReasoning` renders as "nothing to compare against",
+  // the truthful answer, rather than as the nearest other vehicle's reasoning.
+  const reasonsByVehicle = new Map(
+    (explanation?.routes ?? []).map((route) => [route.vehicle_id, route]),
   );
 
   return (
@@ -127,6 +156,14 @@ export default function StopsPanel({ scenario, routes, loading, onLoadSample }: 
             </div>
           ) : (
             <div className="space-y-5">
+              {/* Plan-level first: what happened to the network is the context
+                  every vehicle's sentences below are read against. */}
+              <PlanReasoning
+                explanation={explanation}
+                convergence={convergence}
+                solverName={solverName}
+              />
+
               {activeRoutes.map((route) => (
                 <section key={route.vehicle_id}>
                   <div className="mb-2 flex items-center justify-between">
@@ -182,6 +219,12 @@ export default function StopsPanel({ scenario, routes, loading, onLoadSample }: 
                         </CardContent>
                       </Card>
                     ))}
+                  </div>
+
+                  <div className="mt-2">
+                    <RouteReasoning
+                      explanation={reasonsByVehicle.get(route.vehicle_id)}
+                    />
                   </div>
                 </section>
               ))}

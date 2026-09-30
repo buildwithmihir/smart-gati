@@ -89,6 +89,14 @@
   --color-ok: #006300;
   --color-danger: #d03b3b;
 
+  /* The third status, for a road that is slow rather than shut. Distance and
+     fuel are not the only things that came in threes: an incident has two
+     severities and the palette had one ink for them, so a "slow" report drawn
+     in the closure red would overstate what was reported. Also read back at
+     runtime to paint the map's incident highlight, so it carries `static`'s
+     protection for the same reason the two above do. 5.2:1 on --color-canvas. */
+  --color-warn: #b45309;
+
   /* The one step below Tailwind's `text-xs`. */
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
@@ -257,6 +265,39 @@
   animation: qgati-marker-in var(--qgati-redraw-ms, 420ms) ease-out both;
 }
 
+/* ---------------------------------------------------------------------------
+   The live fleet
+   ---------------------------------------------------------------------------
+   One dot per vehicle, where the watcher says it is. These are the only markers
+   on the map that are not a claim about a *plan*: a numbered stop says where a
+   vehicle will go, and this says where one is. The distinction is carried by
+   weight rather than by colour — no numeral, no ring, a third of the size — so
+   the fleet reads as weather over the routes rather than as furniture beside
+   them, which is what "subtle" has to mean for a layer that moves every tick.
+
+   The dot is one element rather than the wrapper-and-dot pair the stop markers
+   use, and that is forced rather than tidy. That pair exists so the entrance
+   animation can scale without fighting MapLibre for `transform` on the element
+   MapLibre positions — and the same rule bites here, so this dot fades in
+   instead of scaling in and can be the element MapLibre holds.
+
+   Fading rather than scaling is also the honest entrance for a fleet dot: a
+   scale says "a thing arrived", a fade says "this is where it has got to".
+   These are re-positioned in place rather than re-created (re-creating them
+   would restart the entrance on every poll and the whole fleet would blink in
+   unison), so the fade only ever runs once per vehicle, when it first reports.
+   --------------------------------------------------------------------------- */
+.qgati-fleet-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background-color: var(--fleet-color, var(--color-ink));
+  box-shadow:
+    0 0 0 2px var(--color-basemap),
+    0 1px 2px rgb(11 11 11 / 0.3);
+  animation: qgati-fade-in 320ms ease-out both;
+}
+
 @keyframes qgati-marker-in {
   from {
     opacity: 0;
@@ -265,6 +306,30 @@
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   The watcher's live mark
+   ---------------------------------------------------------------------------
+   One dot in the corner pill, breathing, while the simulated fleet is ticking.
+   A fade rather than a scale, because a scale reads as something *arriving* and
+   nothing is: the fleet has been running since the scenario loaded and this
+   only says it still is. Unlike the fleet dots this element is ordinary page
+   furniture, so `transform` is available to it — it simply is not the right
+   verb.
+   --------------------------------------------------------------------------- */
+.qgati-live-dot {
+  animation: qgati-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes qgati-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
   }
 }
 
@@ -317,6 +382,8 @@
 @media (prefers-reduced-motion: reduce) {
   .qgati-marker-dot,
   .qgati-depot-dot,
+  .qgati-fleet-dot,
+  .qgati-live-dot,
   .qgati-fade-in {
     animation: none;
   }

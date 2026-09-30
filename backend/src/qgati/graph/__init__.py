@@ -6,7 +6,10 @@
     >>> costs = build_cost_matrix(graph, scenario)     # collapse to a dense array
 
 :func:`build_cost_matrix` is the hand-off point to the optimizer: past it,
-nothing touches the road graph again.
+nothing touches the road graph again. The dense array it produces is already the
+priced objective — time, distance and fuel combined into rupees under
+:data:`DEFAULT_WEIGHTS` — so a solver minimises it without knowing which of the
+three goals it is trading against which.
 """
 
 from qgati.graph.cost_matrix import (
@@ -34,14 +37,24 @@ from qgati.graph.graph_builder import (
     nearest_node,
     node_coordinates,
 )
+from qgati.optimizer.objective import (
+    DEFAULT_FUEL_MODEL,
+    DEFAULT_WEIGHTS,
+    CostWeights,
+    FuelModel,
+)
 
 __all__ = [
     "DEFAULT_CACHE_DIR",
     "DEFAULT_DIST_M",
+    "DEFAULT_FUEL_MODEL",
     "DEFAULT_PADDING_M",
+    "DEFAULT_WEIGHTS",
     "DELHI_CENTER",
     "CostMatrix",
     "CostMatrixBuild",
+    "CostWeights",
+    "FuelModel",
     "bbox_around_nodes",
     "build_cost_matrix",
     "build_cost_matrix_detailed",

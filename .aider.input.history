@@ -1,0 +1,36 @@
+
+# 2026-09-29 10:42:17.882343
++Y
+
+# 2026-09-29 10:42:31.542429
++n
+
+# 2026-09-29 10:44:28.843756
++heyy
+
+# 2026-09-29 10:50:05.115092
++n
+
+# 2026-09-29 10:50:07.663270
++setx PATH "%PATH%;%USERPROFILE%"
+
+# 2026-09-29 10:50:16.676013
++/bye
+
+# 2026-09-29 10:50:18.823290
++/exit
+
+# 2026-09-29 10:53:00.432533
++n
+
+# 2026-09-29 10:53:07.903922
++Start Supabase migration now.
++
++Tables already created in Supabase via SQL: scenarios, deliveries, vehicles, traffic_log, optimization_runs, vehicle_routes, benchmark_results.
++
++- Add supabase-py as a backend dependency.
++- Wire the existing scenario/delivery/vehicle logic to write to Supabase instead of the current in-memory/SQLite store.
++- Add SUPABASE_URL and SUPABASE_KEY as env vars in backend/.env (service_role key), never hardcoded — confirm .env is already gitignored before touching anything.
++- Keep scenario/delivery/vehicle in-memory store OR move it to Supabase too, your call — but be consistent, don't split state across two stores.
++
++Confirm all existing tests still pass after the migration before telling me it's done.

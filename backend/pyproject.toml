@@ -31,5 +31,5 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "slow: exercises the real Delhi graph; needs a populated cache. Opt in with QGATI_RUN_SLOW=1.",
+    "slow: exercises the real Delhi graph; needs a populated cache. Opt in with SMART_GATI_RUN_SLOW=1.",
 ]

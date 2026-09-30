@@ -1,6 +1,6 @@
 """The shared VRP data contract.
 
-Every optimizer — brute force, Savings, and later QPSO/GA/PSO/ACO — consumes
+Every optimizer — brute force, Savings, GA, classical PSO and QPSO — consumes
 these types and nothing else. They are deliberately free of any dependency on
 the road graph or on numpy: a :class:`Scenario` describes *what* has to be
 delivered, and the cost matrix describes *how expensive* the road network makes
@@ -41,17 +41,53 @@ class Delivery:
 
     ``demand`` is in whatever unit capacities are quoted in — kilograms, parcels,
     it does not matter as long as it is consistent.
+
+    ``earliest_arrival`` and ``latest_arrival`` are an optional **service
+    window**, in seconds from the moment the vehicle leaves the depot. Both are
+    nullable, and a scenario where neither is set anywhere behaves exactly as it
+    did before windows existed.
+
+    Seconds from departure rather than a clock time, deliberately. This layer —
+    like the cost matrix it consumes — is free of any notion of wall-clock time;
+    absolute time belongs to the traffic layer, which prices the road network
+    under a timestamp and then hands the optimizer an array of seconds. Putting a
+    clock in here would mean the router and the optimizer disagreed about what
+    "09:00" means once congestion was involved. An API that accepts ISO times is
+    a conversion at the boundary, not a change of unit in the core.
     """
 
     id: str
     node: NodeId
     demand: float
+    earliest_arrival: float | None = None
+    latest_arrival: float | None = None
 
     def __post_init__(self) -> None:
         if self.demand < 0:
             raise ValueError(
                 f"delivery {self.id!r} has negative demand {self.demand}"
             )
+        for name in ("earliest_arrival", "latest_arrival"):
+            value = getattr(self, name)
+            if value is not None and value < 0.0:
+                raise ValueError(
+                    f"delivery {self.id!r} has negative {name} {value}; windows "
+                    "are measured forward from departure"
+                )
+        if (
+            self.earliest_arrival is not None
+            and self.latest_arrival is not None
+            and self.earliest_arrival > self.latest_arrival
+        ):
+            raise ValueError(
+                f"delivery {self.id!r} has an empty window: earliest "
+                f"{self.earliest_arrival} is after latest {self.latest_arrival}"
+            )
+
+    @property
+    def has_window(self) -> bool:
+        """True when either end of the window is set."""
+        return self.earliest_arrival is not None or self.latest_arrival is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,22 +112,41 @@ class Scenario:
     demand exceeding total fleet capacity, duplicate ids, and so on. Failing
     here rather than inside a solver means an infeasible instance can never
     masquerade as an optimizer that simply performed badly.
+
+    ``starts`` is how a vehicle that is **already out** is described: one node
+    per vehicle, in vehicle order, saying where that vehicle begins. Empty means
+    what it always meant — every vehicle leaves the depot, which is the only
+    thing a plan solved from scratch can say.
+
+    It exists because a route's first leg is not a special case of its others.
+    A vehicle re-optimized halfway through a shift leaves from wherever it is,
+    and modelling that as "a depot that happens to be elsewhere" would need one
+    depot per vehicle. See :meth:`has_custom_starts` for what a solver does
+    differently, which is very little: the search space is untouched, only the
+    cost of a candidate route changes.
     """
 
     depot: Depot
     deliveries: tuple[Delivery, ...] = field(default_factory=tuple)
     vehicles: tuple[Vehicle, ...] = field(default_factory=tuple)
+    starts: tuple[NodeId, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         # Accept lists/tuples from callers but store tuples, so instances are
         # immutable and hashable.
         object.__setattr__(self, "deliveries", tuple(self.deliveries))
         object.__setattr__(self, "vehicles", tuple(self.vehicles))
+        object.__setattr__(self, "starts", tuple(self.starts))
 
         if not self.deliveries:
             raise ValueError("scenario has no deliveries")
         if not self.vehicles:
             raise ValueError("scenario has no vehicles")
+        if self.starts and len(self.starts) != len(self.vehicles):
+            raise ValueError(
+                f"{len(self.starts)} start node(s) for {len(self.vehicles)} "
+                "vehicle(s); starts is one node per vehicle, in vehicle order"
+            )
 
         duplicate_deliveries = _duplicates(d.id for d in self.deliveries)
         if duplicate_deliveries:
@@ -133,6 +188,50 @@ class Scenario:
         """Capacities in vehicle-index order."""
         return tuple(float(v.capacity) for v in self.vehicles)
 
+    @property
+    def has_time_windows(self) -> bool:
+        """True when at least one delivery constrains its arrival time.
+
+        The solvers branch on this: with no windows the route cost is additive
+        and the old, faster code paths are still exact, so an instance that does
+        not use windows pays nothing for the feature existing.
+        """
+        return any(delivery.has_window for delivery in self.deliveries)
+
+    @property
+    def has_custom_starts(self) -> bool:
+        """True when at least one vehicle begins somewhere other than the depot.
+
+        The decoder branches on this rather than on the error it would otherwise
+        make. Two of its decisions — which capacity bounds a route, and whether
+        route order may be reshuffled across vehicles — are the same for every
+        vehicle when they all leave the depot, and are not when they do not.
+
+        It is deliberately about the *scenario* rather than the caller: the five
+        solvers hand a scenario to a decoder and never mention starts, so the
+        branch has to be visible from where the decoder sits.
+        """
+        return bool(self.starts)
+
+    def start_node(self, vehicle_index: int) -> NodeId:
+        """Where vehicle ``vehicle_index`` begins: its own start, or the depot."""
+        if not self.starts:
+            return self.depot.node
+        return self.starts[vehicle_index]
+
+    @property
+    def windows(self) -> tuple[tuple[float | None, float | None], ...]:
+        """Per-delivery ``(earliest, latest)`` in delivery-index order.
+
+        Materialised once per evaluation rather than reached through
+        ``scenario.deliveries`` in the inner loop, which is where arrival times
+        are propagated.
+        """
+        return tuple(
+            (delivery.earliest_arrival, delivery.latest_arrival)
+            for delivery in self.deliveries
+        )
+
     def delivery_ids(self) -> tuple[str, ...]:
         return tuple(d.id for d in self.deliveries)
 
@@ -157,8 +256,11 @@ class Solution:
     of the road graph; delivery positions rather than node ids keep two
     deliveries at the same node distinguishable.
 
-    The depot is implicit: it is the start and end of every route and is never
-    listed.
+    The depot is implicit: it is the end of every route and is never listed. So
+    is the start, which is the depot unless the scenario names a different one
+    per vehicle in :attr:`Scenario.starts` — a re-optimized route begins where
+    its vehicle already is, and that node is a property of the vehicle rather
+    than a stop on the route.
     """
 
     routes: tuple[tuple[int, ...], ...] = field(default_factory=tuple)

@@ -3,7 +3,7 @@
 This exists for a future phase, not this one. There is no model here and nothing
 reads these rows back except the API's inspection endpoint. The point is to start
 collecting **now**, so that when a travel-time predictor is finally built it has
-a history of ``(road, time, weather, incident) -> travel time`` to learn from
+a history of ``(road, time, condition, incident) -> travel time`` to learn from
 rather than an empty table.
 
 Why SQLite
@@ -69,10 +69,10 @@ __all__ = [
 Node = Hashable
 
 #: The log lives beside the graph cache in ``backend/data/``. Override with
-#: ``QGATI_TRAFFIC_DB`` — the test suite points it at a tmp path so a test run
+#: ``SMART_GATI_TRAFFIC_DB`` — the test suite points it at a tmp path so a test run
 #: never touches the developer's collected data.
 DEFAULT_LOG_DB_PATH = Path(
-    os.environ.get("QGATI_TRAFFIC_DB", DEFAULT_DATA_DIR / "traffic_log.db")
+    os.environ.get("SMART_GATI_TRAFFIC_DB", DEFAULT_DATA_DIR / "traffic_log.db")
 )
 
 #: SQLite's in-memory path, accepted so a caller can keep a whole log in RAM.
@@ -87,7 +87,6 @@ CREATE TABLE IF NOT EXISTS traffic_log (
     timestamp         TEXT    NOT NULL,
     day_of_week       TEXT    NOT NULL,
     time_of_day       TEXT    NOT NULL,
-    weather_condition TEXT    NOT NULL,
     traffic_condition TEXT    NOT NULL,
     incident_type     TEXT,
     travel_time       REAL
@@ -104,11 +103,17 @@ _COLUMNS = (
     "timestamp",
     "day_of_week",
     "time_of_day",
-    "weather_condition",
     "traffic_condition",
     "incident_type",
     "travel_time",
 )
+
+#: Columns an earlier version of this schema wrote and this one does not. Rain
+#: stopped being a modelled condition, so ``weather_condition`` would be a
+#: constant ``"clear"`` on every row — a feature that can never vary is worse
+#: than no feature at all. Dropped on open; see
+#: :meth:`TrafficLogStore._drop_retired_columns`.
+RETIRED_COLUMNS = ("weather_condition",)
 
 _INSERT = (
     f"INSERT INTO traffic_log ({', '.join(_COLUMNS)}) "
@@ -151,7 +156,6 @@ class TrafficLogRow:
     timestamp: str
     day_of_week: str
     time_of_day: str
-    weather_condition: str
     traffic_condition: str
     incident_type: str | None = None
     travel_time: float | None = None
@@ -169,7 +173,6 @@ class TrafficLogRow:
             "timestamp": self.timestamp,
             "day_of_week": self.day_of_week,
             "time_of_day": self.time_of_day,
-            "weather_condition": self.weather_condition,
             "traffic_condition": self.traffic_condition,
             "incident_type": self.incident_type,
             "travel_time": self.travel_time,
@@ -183,7 +186,6 @@ class TrafficLogRow:
             self.timestamp,
             self.day_of_week,
             self.time_of_day,
-            self.weather_condition,
             self.traffic_condition,
             self.incident_type,
             self.travel_time,
@@ -212,7 +214,6 @@ class TrafficLogRow:
                     timestamp=timestamp.isoformat(),
                     day_of_week=timestamp.strftime("%A"),
                     time_of_day=timestamp.strftime("%H:%M"),
-                    weather_condition=state.weather,
                     traffic_condition=state.traffic_condition,
                     incident_type=state.incident_type(edge),
                     travel_time=None if travel_time is None else round(travel_time, 3),
@@ -243,7 +244,34 @@ class TrafficLogStore:
             # which is the normal state of affairs for the inspection endpoint.
             self._connection.execute("PRAGMA journal_mode=WAL")
             self._connection.executescript(_SCHEMA)
+            self._drop_retired_columns()
             self._connection.commit()
+
+    def _drop_retired_columns(self) -> None:
+        """Drop columns an older schema wrote, from a table that already exists.
+
+        ``CREATE TABLE IF NOT EXISTS`` leaves a pre-existing table untouched, so
+        a database written before rain stopped being modelled would keep its
+        ``weather_condition`` column — declared ``NOT NULL`` with no default, and
+        therefore fatal to every insert this version makes. The column is the
+        thing that is obsolete, so the column goes and the rows stay: this log is
+        an accumulating dataset, and losing a day of it to a schema tidy-up would
+        be the wrong trade.
+
+        A fresh database, which is the common case, has nothing to drop. A
+        SQLite older than 3.35 has no ``ALTER TABLE ... DROP COLUMN`` and raises;
+        that is left to surface rather than papered over, since silently keeping
+        a broken column would be worse than a loud error.
+        """
+        present = {
+            row["name"]
+            for row in self._connection.execute("PRAGMA table_info(traffic_log)")
+        }
+        for column in RETIRED_COLUMNS:
+            if column in present:
+                self._connection.execute(
+                    f"ALTER TABLE traffic_log DROP COLUMN {column}"
+                )
 
     # -- writing ----------------------------------------------------------- #
     def write(self, rows: Iterable[TrafficLogRow]) -> int:
@@ -328,7 +356,6 @@ def _row_from_sqlite(row: sqlite3.Row) -> TrafficLogRow:
         timestamp=row["timestamp"],
         day_of_week=row["day_of_week"],
         time_of_day=row["time_of_day"],
-        weather_condition=row["weather_condition"],
         traffic_condition=row["traffic_condition"],
         incident_type=row["incident_type"],
         travel_time=row["travel_time"],

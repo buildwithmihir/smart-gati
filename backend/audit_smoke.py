@@ -43,7 +43,7 @@ def main() -> int:
     print(f"graph: {graph.number_of_nodes()} nodes / {graph.number_of_edges()} edges")
 
     with TestClient(app) as client:
-        banner("STEP 1 — create a scenario (off-peak, generated)")
+        banner("STEP 1 — create a scenario (moderate, generated)")
         created = client.post(
             "/scenarios",
             json={
@@ -58,8 +58,7 @@ def main() -> int:
         scenario = created.json()
         sid = scenario["scenario_id"]
         print(f"scenario_id      {sid}")
-        print(f"condition        {scenario['conditions']['traffic_condition']} "
-              f"({scenario['conditions']['weather']})")
+        print(f"condition        {scenario['conditions']['traffic_condition']}")
         print(f"rows logged      {scenario['traffic_rows_logged']}")
 
         banner("STEP 2 — optimize with the production default (no solver named)")

@@ -6,15 +6,16 @@ the real Delhi graph — no fixtures, no synthetic graph:
 
 1. **One delivery round, priced twice.** The identical instance (same seed, so
    the same stops and the same fleet) is created once for 09:00 and once for
-   14:00. Peak hour weights congestion by road class, so the arterial-heavy tour
-   that wins off-peak loses under peak and the optimizer takes a different route.
+   14:00 — the peak band and the moderate one. Congestion is weighted by road
+   class, so an arterial-heavy tour can lose to one that takes side streets, and
+   the optimizer takes a different route.
 2. **The traffic log fills up on its own.** Every scenario creation appends a row
    per affected road as a side effect. ``GET /traffic/log`` is then read back and
    printed, so the rows shown are real response bodies from the running app.
 
 Why road class matters, in one line: a multiplier applied uniformly to every road
 scales every tour equally and therefore cannot change which tour wins. The
-peak factor is weighted by road class precisely so that it can.
+congestion factors are weighted by road class precisely so that they can.
 
 Requests go through ``TestClient``, which drives the real FastAPI application
 in-process. That keeps the demo to one command with no server to start, while
@@ -43,9 +44,10 @@ from qgati.traffic import DEFAULT_LOG_DB_PATH, TrafficLogStore
 #: Delhi's fixed offset, so the two runs land on a known side of the peak window.
 IST = timezone(timedelta(hours=5, minutes=30))
 
-#: 09:00 is inside the 08:00-10:00 morning peak; 14:00 is not.
+#: 09:00 is inside the 08:00-10:00 morning peak. 14:00 is inside the daytime
+#: band but between the peak windows, so it prices as moderate.
 PEAK_TIME = datetime(2026, 9, 21, 9, 0, tzinfo=IST)
-OFF_PEAK_TIME = datetime(2026, 9, 21, 14, 0, tzinfo=IST)
+MODERATE_TIME = datetime(2026, 9, 21, 14, 0, tzinfo=IST)
 
 RULE = "-" * 78
 
@@ -56,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--vehicles", type=int, default=3)
     parser.add_argument("--seed", type=int, default=21, help="fixes the instance")
     parser.add_argument(
-        "--solver", default="aco", help="production default unless overridden"
+        "--solver", default="qpso", help="production default unless overridden"
     )
     parser.add_argument("--log-rows", type=int, default=8, help="rows to print")
     return parser
@@ -113,10 +115,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     with TestClient(app) as client:
         peak = create_scenario(client, args, PEAK_TIME)
-        off_peak = create_scenario(client, args, OFF_PEAK_TIME)
+        moderate = create_scenario(client, args, MODERATE_TIME)
 
         peak_solution = optimize(client, peak["scenario_id"], args.solver)
-        off_peak_solution = optimize(client, off_peak["scenario_id"], args.solver)
+        moderate_solution = optimize(client, moderate["scenario_id"], args.solver)
 
         log_page = client.get("/traffic/log", params={"limit": args.log_rows}).json()
         total_rows = client.get("/traffic/log", params={"limit": 1}).json()["total"]
@@ -125,13 +127,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("1. The same delivery round, priced at two times of day")
     print(RULE)
     for label, created, solved in (
-        ("off-peak 14:00", off_peak, off_peak_solution),
+        ("moderate 14:00", moderate, moderate_solution),
         ("peak     09:00", peak, peak_solution),
     ):
         conditions = created["conditions"]
         print(
             f"  {label}   {conditions['traffic_condition']:<9} "
-            f"travel cost {solved['travel_cost']:>9.1f} s"
+            f"time {solved['travel_time']:>8.1f} s  "
+            f"fuel {solved['fuel_litres']:>6.2f} L  "
+            f"cost Rs{solved['travel_cost']:>9.2f}"
         )
         for line in describe_routes(solved):
             print(line)
@@ -141,7 +145,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for route in peak_solution["routes"]
     ] == [
         [stop["delivery_id"] for stop in route["stops"]]
-        for route in off_peak_solution["routes"]
+        for route in moderate_solution["routes"]
     ]
     verdict = "IDENTICAL — the peak factor would be decorative" if same else "DIFFERENT"
     print()
@@ -151,7 +155,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("2. The traffic log, written as a side effect of the two creations above")
     print(RULE)
     print(f"  rows logged by these two scenarios: "
-          f"{peak['traffic_rows_logged']} + {off_peak['traffic_rows_logged']}")
+          f"{peak['traffic_rows_logged']} + {moderate['traffic_rows_logged']}")
     print(f"  total rows in the table now:       {total_rows} "
           f"(was {before} before this run)")
     print()
@@ -160,7 +164,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print()
 
     header = (
-        f"  {'road_id':<24} {'time':<6} {'day':<4} {'weather':<8} "
+        f"  {'road_id':<24} {'time':<6} {'day':<4} "
         f"{'traffic':<9} {'incident':<13} {'travel_time':>11}"
     )
     print(header)
@@ -170,7 +174,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         rendered = "impassable" if travel_time is None else f"{travel_time:>11.3f}"
         print(
             f"  {entry['road_id']:<24} {entry['time_of_day']:<6} "
-            f"{entry['day_of_week'][:3]:<4} {entry['weather_condition']:<8} "
+            f"{entry['day_of_week'][:3]:<4} "
             f"{entry['traffic_condition']:<9} {str(entry['incident_type'] or '-'):<13} "
             f"{rendered}"
         )

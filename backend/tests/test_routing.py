@@ -5,7 +5,7 @@ are run against networkx's implementations on the same graphs with the same
 weights and heuristics, and the costs must agree exactly (to 1e-9).
 
 Everything here uses :func:`build_synthetic_graph` — no OSM, no network, no
-disk. The single real-Delhi test at the bottom is opt-in via ``QGATI_RUN_SLOW``.
+disk. The single real-Delhi test at the bottom is opt-in via ``SMART_GATI_RUN_SLOW``.
 """
 
 from __future__ import annotations
@@ -356,8 +356,8 @@ def test_largest_strongly_connected_subgraph() -> None:
 # --------------------------------------------------------------------------- #
 @pytest.mark.slow
 def test_routing_on_real_delhi_graph() -> None:
-    if not os.environ.get("QGATI_RUN_SLOW"):
-        pytest.skip("set QGATI_RUN_SLOW=1 to run tests against the real Delhi graph")
+    if not os.environ.get("SMART_GATI_RUN_SLOW"):
+        pytest.skip("set SMART_GATI_RUN_SLOW=1 to run tests against the real Delhi graph")
     if not is_delhi_graph_cached():
         pytest.skip(
             "no cached Delhi graph; run load_delhi_graph() once to populate "
