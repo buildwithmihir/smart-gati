@@ -140,6 +140,7 @@ from __future__ import annotations
 import functools
 import logging
 import math
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -288,6 +289,15 @@ LOGGER = logging.getLogger(__name__)
 ALLOWED_ORIGINS = (
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    # Deployed frontend (Vercel).
+    "https://smart-gati-7gxx.vercel.app",
+    # Extra origins can be added without a code change: set CORS_ORIGINS on the
+    # host as a comma-separated list, e.g. "https://a.vercel.app,https://b.com".
+    *(
+        origin.strip().rstrip("/")
+        for origin in os.getenv("CORS_ORIGINS", "").split(",")
+        if origin.strip()
+    ),
 )
 
 #: Ceiling on a generated instance. A cost matrix is quadratic in stops and the
