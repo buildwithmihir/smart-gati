@@ -43,7 +43,12 @@
  * from that dispatch rather than from a separate `POST /optimize`.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// A trailing slash on the configured URL would produce "//scenarios" below, so
+// it is stripped. In production this is "/gati-api" (see next.config.ts), which
+// makes every call same-origin.
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
 
 export type Depot = {
   node: number;
@@ -1048,4 +1053,3 @@ export function fetchCompare(
     `/optimize/${encodeURIComponent(scenarioId)}/compare${query ? `?${query}` : ""}`,
   );
 }
-
